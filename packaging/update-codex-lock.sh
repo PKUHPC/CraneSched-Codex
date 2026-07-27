@@ -5,14 +5,12 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd -- "${script_dir}/.." && pwd)"
 lock_path="${script_dir}/codex.lock.json"
 codex_repo="${repo_dir}/ref/codex"
-prerelease=false
 
 usage() {
     cat <<'EOF'
 Usage: update-codex-lock.sh VERSION RPM_RELEASE [OPTIONS]
 
 Options:
-  --prerelease       Mark the resulting GitHub Release as a prerelease
   --lock PATH        Write an alternate Source Lock (primarily for tests)
   --codex-repo PATH  Use an alternate Codex checkout (primarily for tests)
   -h, --help         Show this help
@@ -34,10 +32,6 @@ shift 2
 
 while (($# > 0)); do
     case "$1" in
-        --prerelease)
-            prerelease=true
-            shift
-            ;;
         --lock)
             (($# >= 2)) || die "--lock requires a path"
             lock_path="$2"
@@ -76,8 +70,10 @@ commit="$(git -C "${codex_repo}" rev-list -n 1 "${tag}")"
 
 metadata_path="${CODEX_RELEASE_METADATA:-}"
 metadata_temp=""
+lock_temp=""
 cleanup() {
     [[ -z "${metadata_temp}" ]] || rm -f -- "${metadata_temp}"
+    [[ -z "${lock_temp}" ]] || rm -f -- "${lock_temp}"
 }
 trap cleanup EXIT
 
@@ -117,7 +113,6 @@ jq -n \
     --arg asset_url "${asset_url}" \
     --arg sha256 "${asset_sha256}" \
     --argjson rpm_release "${rpm_release}" \
-    --argjson prerelease "${prerelease}" \
     '{
         version: $version,
         tag: $tag,
@@ -126,9 +121,9 @@ jq -n \
         asset: $asset,
         asset_url: $asset_url,
         sha256: $sha256,
-        rpm_release: $rpm_release,
-        prerelease: $prerelease
+        rpm_release: $rpm_release
     }' >"${lock_temp}"
 mv -f -- "${lock_temp}" "${lock_path}"
+lock_temp=""
 
 printf 'Updated Codex Source Lock to %s (%s).\n' "${version}" "${commit}"

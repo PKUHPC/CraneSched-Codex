@@ -37,18 +37,7 @@ jobs:
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -w /workspace \
             rockylinux:9 \
-            bash -euxo pipefail -c '
-              dnf --assumeyes install dnf-plugins-core epel-release
-              dnf config-manager --set-enabled crb || true
-              dnf --assumeyes install \
-                bubblewrap cpio findutils git gzip iproute jq \
-                procps-ng python3 python3-pyyaml ripgrep rpm rpm-build \
-                systemd tar util-linux
-              git config --global --add safe.directory /workspace
-              git config --global --add safe.directory /workspace/ref/codex
-              git config --global --add safe.directory /workspace/ref/CraneSched
-              tests/ci.sh
-            '
+            bash .github/scripts/run-el9-ci.sh
 
       - name: Publish RPM and checksum
         env:
@@ -66,7 +55,8 @@ jobs:
             printf 'Release %s already exists.\n' "${tag}" >&2
             exit 1
           fi
-          sha256sum "${rpm_path}" >dist/SHA256SUMS
+          rpm_name="$(basename -- "${rpm_path}")"
+          (cd dist && sha256sum "${rpm_name}" >SHA256SUMS)
           release_args=(
             "${tag}"
             "${rpm_path}"
@@ -75,7 +65,4 @@ jobs:
             --title "CraneSched-Codex ${version}-${rpm_release}"
             --generate-notes
           )
-          if jq -e .prerelease packaging/codex.lock.json >/dev/null; then
-            release_args+=(--prerelease)
-          fi
           gh release create "${release_args[@]}"

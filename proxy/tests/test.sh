@@ -42,18 +42,23 @@ python3 - \
 import pathlib
 import sys
 
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
+
 config_path, unit_path, wrapper_path, manager_path = map(pathlib.Path, sys.argv[1:])
 config_text = config_path.read_text(encoding="utf-8")
-required_lines = {
-    'model = "gpt-5.6-sol"',
-    'model_provider = "cluster_shared"',
-    '[model_providers.cluster_shared]',
-    'name = "PKU CraneSched-Codex Proxy"',
-    'base_url = "http://127.0.0.1:617/v1"',
-    'wire_api = "responses"',
-    'requires_openai_auth = false',
+config = tomllib.loads(config_text)
+assert config["model"] == "gpt-5.6-sol"
+assert config["model_provider"] == "cluster_shared"
+provider = config["model_providers"]["cluster_shared"]
+assert provider == {
+    "name": "PKU CraneSched-Codex Proxy",
+    "base_url": "http://127.0.0.1:617/v1",
+    "wire_api": "responses",
+    "requires_openai_auth": False,
 }
-assert required_lines <= {line.strip() for line in config_text.splitlines()}
 assert "/etc/codex/skills" in config_text
 for forbidden in ("bearer", "api_key", "api-key", "experimental_bearer_token"):
     assert forbidden not in config_text.lower()

@@ -24,7 +24,7 @@ jq -n '{
 
 CODEX_RELEASE_METADATA="${test_dir}/release.json" \
     "${repo_dir}/packaging/update-codex-lock.sh" \
-    0.145.0 7 --prerelease \
+    0.145.0 7 \
     --lock "${test_dir}/codex.lock.json" \
     --codex-repo "${test_dir}/codex"
 
@@ -36,7 +36,7 @@ jq -e '
     .asset == "codex-x86_64-unknown-linux-musl.tar.gz" and
     .sha256 == "bfaf13c9ba34f2ad764e4a916c49cf7177aeba329cf0f719e2227566fc8d662a" and
     .rpm_release == 7 and
-    .prerelease == true
+    (has("prerelease") | not)
 ' "${test_dir}/codex.lock.json" >/dev/null
 
 printf 'Codex Source Lock update contract passed.\n'

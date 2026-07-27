@@ -30,7 +30,7 @@ trap cleanup EXIT
 [[ "$(rpm -qp --queryformat '%{ARCH}' "${rpm_path}")" == "x86_64" ]]
 rpm -K --nosignature "${rpm_path}" >/dev/null
 package_requires="$(rpm -qp --requires "${rpm_path}")"
-for dependency in bubblewrap ripgrep; do
+for dependency in bubblewrap python3-tomli ripgrep; do
     rg -Fxq -- "${dependency}" <<<"${package_requires}"
 done
 

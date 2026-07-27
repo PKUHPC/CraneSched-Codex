@@ -27,6 +27,7 @@ Requires:       bubblewrap
 Requires:       coreutils
 Requires:       procps-ng
 Requires:       python3 >= 3.9
+Requires:       python3-tomli
 Requires:       ripgrep
 Requires:       systemd >= 247
 Requires(post): systemd
@@ -104,5 +105,5 @@ fi
 %license /usr/share/licenses/%{name}/CODEX-NOTICE
 
 %changelog
-* Mon Jul 27 2026 Cluster Administration <root@localhost> - %{codex_version}-1
+* Mon Jul 27 2026 Cluster Administration <root@localhost> - %{codex_version}-%{package_release}
 - Initial CraneSched-Codex RPM with pinned Codex, proxy, and Admin Skills.

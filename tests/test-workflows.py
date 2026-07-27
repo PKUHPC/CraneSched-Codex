@@ -12,37 +12,73 @@ paths = {
     "release": workflow_dir / "release-rpm.yml",
 }
 
-for name, path in paths.items():
+
+def load_workflow(path: Path) -> dict:
     if not path.is_file():
-        raise AssertionError(f"missing {name} workflow: {path.relative_to(repo)}")
+        raise AssertionError(f"missing workflow: {path.relative_to(repo)}")
     with path.open(encoding="utf-8") as handle:
-        document = yaml.safe_load(handle)
-    if not isinstance(document, dict) or "jobs" not in document:
+        document = yaml.load(handle, Loader=yaml.BaseLoader)
+    if not isinstance(document, dict) or not isinstance(document.get("jobs"), dict):
         raise AssertionError(f"invalid workflow document: {path.relative_to(repo)}")
+    return document
 
-upgrade = paths["upgrade"].read_text(encoding="utf-8")
-assert "workflow_dispatch:" in upgrade
-assert "CRANESCHED_CODEX_APP_ID" in upgrade
-assert "CRANESCHED_CODEX_APP_PRIVATE_KEY" in upgrade
-assert "packaging/update-codex-lock.sh" in upgrade
-assert "gh pr create" in upgrade
-assert "gh pr merge" in upgrade and "--auto" in upgrade
-assert "git add packaging/codex.lock.json ref/codex" in upgrade
-assert "git add packaging/codex.lock.json ref/codex ref/CraneSched" not in upgrade
 
-compatibility = paths["compatibility"].read_text(encoding="utf-8")
-assert "pull_request:" in compatibility
-assert "tests/ci.sh" in compatibility
-assert "secrets:" not in compatibility
+def steps(document: dict, job_name: str) -> list:
+    job = document["jobs"][job_name]
+    assert isinstance(job, dict) and isinstance(job.get("steps"), list)
+    return job["steps"]
 
-release = paths["release"].read_text(encoding="utf-8")
-assert "pull_request:" in release
-assert "types: [closed]" in release
-assert "workflow_dispatch:" not in release
-assert "github.event.pull_request.merged == true" in release
-assert "automation/codex-" in release
-assert "github.event.pull_request.merge_commit_sha" in release
-assert "gh release create" in release
-assert "tests/ci.sh" in release
+
+def run_script(document: dict, job_name: str) -> str:
+    return "\n".join(
+        step["run"]
+        for step in steps(document, job_name)
+        if isinstance(step, dict) and isinstance(step.get("run"), str)
+    )
+
+
+def contains_string(value, fragment: str) -> bool:
+    if isinstance(value, str):
+        return fragment in value
+    if isinstance(value, dict):
+        return any(contains_string(item, fragment) for item in value.values())
+    if isinstance(value, list):
+        return any(contains_string(item, fragment) for item in value)
+    return False
+
+
+workflows = {name: load_workflow(path) for name, path in paths.items()}
+
+upgrade = workflows["upgrade"]
+assert "workflow_dispatch" in upgrade["on"]
+upgrade_steps = steps(upgrade, "prepare-upgrade")
+assert any(step.get("uses") == "actions/create-github-app-token@v2" for step in upgrade_steps)
+assert contains_string(upgrade, "CRANESCHED_CODEX_APP_ID")
+assert contains_string(upgrade, "CRANESCHED_CODEX_APP_PRIVATE_KEY")
+upgrade_run = run_script(upgrade, "prepare-upgrade")
+assert "packaging/update-codex-lock.sh" in upgrade_run
+assert "gh pr create" in upgrade_run
+assert "gh pr merge" in upgrade_run and "--auto" in upgrade_run
+assert "git add packaging/codex.lock.json ref/codex" in upgrade_run
+assert "git add packaging/codex.lock.json ref/codex ref/CraneSched" not in upgrade_run
+assert not contains_string(upgrade, "prerelease")
+
+compatibility = workflows["compatibility"]
+assert compatibility["on"]["pull_request"]["branches"] == ["main"]
+assert ".github/scripts/run-el9-ci.sh" in run_script(compatibility, "test")
+assert not contains_string(compatibility, "secrets.")
+
+release = workflows["release"]
+assert release["on"]["pull_request"]["types"] == ["closed"]
+assert "workflow_dispatch" not in release["on"]
+release_job = release["jobs"]["release"]
+assert "github.event.pull_request.merged == true" in release_job["if"]
+assert "automation/codex-" in release_job["if"]
+assert contains_string(release, "github.event.pull_request.merge_commit_sha")
+release_run = run_script(release, "release")
+assert ".github/scripts/run-el9-ci.sh" in release_run
+assert "gh release create" in release_run
+assert 'cd dist && sha256sum "${rpm_name}"' in release_run
+assert not contains_string(release, "prerelease")
 
 print("GitHub Actions workflow contract passed.")

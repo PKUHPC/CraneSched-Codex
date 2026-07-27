@@ -12,12 +12,6 @@ on:
         required: true
         default: "1"
         type: string
-      prerelease:
-        description: Publish the resulting GitHub Release as a prerelease
-        required: true
-        default: false
-        type: boolean
-
 permissions:
   contents: read
 
@@ -50,13 +44,8 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           CODEX_VERSION: ${{ inputs.codex_version }}
           RPM_RELEASE: ${{ inputs.rpm_release }}
-          PRERELEASE: ${{ inputs.prerelease }}
         run: |
-          args=("${CODEX_VERSION}" "${RPM_RELEASE}")
-          if [[ "${PRERELEASE}" == "true" ]]; then
-            args+=(--prerelease)
-          fi
-          packaging/update-codex-lock.sh "${args[@]}"
+          packaging/update-codex-lock.sh "${CODEX_VERSION}" "${RPM_RELEASE}"
 
       - name: Run x86_64 EL9 preflight
         run: |
@@ -66,18 +55,7 @@ jobs:
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -w /workspace \
             rockylinux:9 \
-            bash -euxo pipefail -c '
-              dnf --assumeyes install dnf-plugins-core epel-release
-              dnf config-manager --set-enabled crb || true
-              dnf --assumeyes install \
-                bubblewrap cpio findutils git gzip iproute jq \
-                procps-ng python3 python3-pyyaml ripgrep rpm rpm-build \
-                systemd tar util-linux
-              git config --global --add safe.directory /workspace
-              git config --global --add safe.directory /workspace/ref/codex
-              git config --global --add safe.directory /workspace/ref/CraneSched
-              tests/ci.sh
-            '
+            bash .github/scripts/run-el9-ci.sh
 
       - name: Create upgrade PR and enable auto-merge
         env:

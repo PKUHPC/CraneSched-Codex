@@ -61,7 +61,7 @@ jq -e '
     .asset_url == "https://github.com/openai/codex/releases/download/rust-v0.145.0/codex-x86_64-unknown-linux-musl.tar.gz" and
     .sha256 == "bfaf13c9ba34f2ad764e4a916c49cf7177aeba329cf0f719e2227566fc8d662a" and
     .rpm_release == 1 and
-    .prerelease == false
+    (has("prerelease") | not)
 ' "${lock_path}" >/dev/null
 
 [[ "$(git -C "${repo_dir}/ref/codex" rev-parse HEAD)" == \

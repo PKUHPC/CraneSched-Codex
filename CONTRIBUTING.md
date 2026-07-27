@@ -16,13 +16,16 @@ Relevant project decisions live in `CONTEXT.md` and `docs/adr/`.
 
 ## Source updates
 
-Do not edit `packaging/codex.lock.json` or move `ref/codex` independently. Use:
+Do not manually change the locked Codex version, source identity, artifact, or
+RPM release, and do not move `ref/codex` independently. Use:
 
 ```bash
 packaging/update-codex-lock.sh <version> <rpm-release>
 ```
 
-The lock and submodule pointer must be reviewed and committed together.
+For every Codex version change, the lock and submodule pointer must be reviewed
+and committed together. Schema-only Source Lock changes do not move the pinned
+upstream source.
 Updating Codex must not move `ref/CraneSched`.
 
 Admin Skill changes are ordinary reviewed source changes under `skills/`.
