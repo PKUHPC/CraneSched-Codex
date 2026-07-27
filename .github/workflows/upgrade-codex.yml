@@ -1,4 +1,5 @@
 name: Upgrade Codex
+run-name: Upgrade Codex to ${{ inputs.codex_version }}-${{ inputs.rpm_release }}
 
 on:
   workflow_dispatch:
