@@ -84,8 +84,9 @@ only the RPM can install all software and runtime dependencies directly:
 sudo dnf install ./cranesched-codex-0.145.0-1.el9.x86_64.rpm
 ```
 
-The RPM requires `bubblewrap` and `ripgrep`. Ensure those packages are available
-from the node's enabled repositories or internal mirror.
+The RPM requires `bubblewrap`, `ripgrep`, and the EL9 `python3-tomli` package.
+Ensure those packages are available from the node's enabled repositories or
+internal mirror; DNF resolves them automatically.
 
 Installation deliberately leaves the service stopped because the Key is not in
 the package. Provision it from a root-readable Codex provider configuration:
