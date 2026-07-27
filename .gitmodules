@@ -1,0 +1,6 @@
+[submodule "ref/codex"]
+	path = ref/codex
+	url = https://github.com/openai/codex.git
+[submodule "ref/CraneSched"]
+	path = ref/CraneSched
+	url = https://github.com/PKUHPC/CraneSched.git

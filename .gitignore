@@ -1,0 +1,12 @@
+/dist/
+/.scratch/
+*.rpm
+*.log
+*.tmp
+__pycache__/
+*.py[cod]
+.env
+.env.*
+*.key
+*.pem
+proxy-api-key

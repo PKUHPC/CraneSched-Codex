@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly EXPECTED_PROVIDER="pku"
+readonly EXPECTED_BASE_URL="https://chat.pku.edu.cn/deployer/coding_tatu/v1"
+readonly PROXY_PORT=617
+readonly SERVICE="cranesched-codex-proxy.service"
+readonly SECRET_PATH="/etc/codex/proxy-api-key"
+readonly EXTRACTOR="/usr/libexec/cranesched-codex/extract_provider_credential.py"
+
+source_config="/root/.codex/config.toml"
+start_service=1
+verify_upstream=0
+
+usage() {
+    cat <<'EOF'
+Usage: cranesched-codex-provision [OPTIONS]
+
+Provision or rotate the CraneSched-Codex upstream credential.
+
+Options:
+  --source-config PATH  Secure administrator Codex config
+                        (default: /root/.codex/config.toml)
+  --verify-upstream     Send one minimal real Responses request after restart
+  --no-start            Write the credential without enabling/restarting service
+  -h, --help            Show this help
+EOF
+}
+
+die() {
+    printf 'cranesched-codex-provision: %s\n' "$*" >&2
+    exit 1
+}
+
+while (($# > 0)); do
+    case "$1" in
+        --source-config)
+            (($# >= 2)) || die "--source-config requires a path"
+            source_config="$2"
+            shift 2
+            ;;
+        --verify-upstream)
+            verify_upstream=1
+            shift
+            ;;
+        --no-start)
+            start_service=0
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            die "unknown argument: $1"
+            ;;
+    esac
+done
+
+[[ "${EUID}" -eq 0 ]] || die "must run as root"
+[[ -f "${source_config}" ]] || die "source config not found: ${source_config}"
+[[ -x "${EXTRACTOR}" ]] || die "cranesched-codex RPM is not installed"
+((start_service == 1 || verify_upstream == 0)) ||
+    die "--verify-upstream cannot be combined with --no-start"
+
+systemd_version="$(systemctl --version | awk 'NR == 1 { print $2 }')"
+[[ "${systemd_version}" =~ ^[0-9]+$ ]] || die "cannot determine the systemd version"
+((systemd_version >= 247)) || die "systemd 247 or newer is required"
+unprivileged_port_start="$(sysctl -n net.ipv4.ip_unprivileged_port_start 2>/dev/null || true)"
+[[ "${unprivileged_port_start}" =~ ^[0-9]+$ ]] ||
+    die "cannot determine net.ipv4.ip_unprivileged_port_start"
+((PROXY_PORT < unprivileged_port_start)) ||
+    die "port ${PROXY_PORT} is not privileged on this host"
+
+if ! systemctl is-active --quiet "${SERVICE}"; then
+    python3 - "${PROXY_PORT}" <<'PY'
+import socket
+import sys
+
+port = int(sys.argv[1])
+try:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", port))
+except OSError as error:
+    raise SystemExit(f"proxy port 127.0.0.1:{port} is unavailable: {error}") from error
+PY
+fi
+
+install -d -m 0755 -- /etc/codex
+stage_dir="$(mktemp -d /etc/codex/.provision.XXXXXX)"
+cleanup() {
+    rm -f -- "${SECRET_PATH}.tmp.$$"
+    rm -rf -- "${stage_dir}"
+}
+trap cleanup EXIT
+
+python3 "${EXTRACTOR}" \
+    --source "${source_config}" \
+    --provider "${EXPECTED_PROVIDER}" \
+    --expected-base-url "${EXPECTED_BASE_URL}" \
+    --output "${stage_dir}/new-key"
+
+had_secret=0
+was_active=0
+was_enabled=0
+if [[ -f "${SECRET_PATH}" ]]; then
+    had_secret=1
+    install -m 0400 -- "${SECRET_PATH}" "${stage_dir}/old-key"
+fi
+systemctl is-active --quiet "${SERVICE}" && was_active=1
+systemctl is-enabled --quiet "${SERVICE}" && was_enabled=1
+
+install -m 0400 -- "${stage_dir}/new-key" "${SECRET_PATH}.tmp.$$"
+mv -Tf -- "${SECRET_PATH}.tmp.$$" "${SECRET_PATH}"
+
+restore_previous() {
+    local reason="$1"
+    if ((had_secret == 1)); then
+        install -m 0400 -- "${stage_dir}/old-key" "${SECRET_PATH}.tmp.$$"
+        mv -Tf -- "${SECRET_PATH}.tmp.$$" "${SECRET_PATH}"
+    else
+        rm -f -- "${SECRET_PATH}"
+    fi
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    if ((was_enabled == 1)); then
+        systemctl enable "${SERVICE}" >/dev/null 2>&1 || true
+    else
+        systemctl disable "${SERVICE}" >/dev/null 2>&1 || true
+    fi
+    if ((had_secret == 1 && was_active == 1)); then
+        systemctl restart "${SERVICE}" >/dev/null 2>&1 || true
+    else
+        systemctl stop "${SERVICE}" >/dev/null 2>&1 || true
+    fi
+    die "${reason}; previous credential and service state restored"
+}
+
+if ((start_service == 0)); then
+    printf 'Credential installed at %s; service state was not changed.\n' "${SECRET_PATH}"
+    exit 0
+fi
+
+systemctl daemon-reload || restore_previous "systemd daemon-reload failed"
+systemctl enable "${SERVICE}" >/dev/null || restore_previous "service enable failed"
+systemctl restart "${SERVICE}" || restore_previous "service restart failed"
+
+if ! python3 - "${PROXY_PORT}" <<'PY'
+import socket
+import sys
+import time
+
+port = int(sys.argv[1])
+for _ in range(50):
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.5) as connection:
+            connection.sendall(
+                b"GET /__cranesched_codex_ready HTTP/1.1\r\n"
+                b"Host: 127.0.0.1\r\n"
+                b"Connection: close\r\n\r\n"
+            )
+            status_line = connection.recv(128).split(b"\r\n", 1)[0]
+            if b" 403 " in status_line:
+                raise SystemExit(0)
+    except OSError:
+        pass
+    time.sleep(0.1)
+raise SystemExit(1)
+PY
+then
+    restore_previous "local proxy readiness check failed"
+fi
+systemctl is-active --quiet "${SERVICE}" || restore_previous "service is not active"
+
+if ((verify_upstream == 1)); then
+    if ! python3 - "${PROXY_PORT}" <<'PY'
+import json
+import sys
+import urllib.request
+
+port = int(sys.argv[1])
+payload = json.dumps(
+    {
+        "model": "gpt-5.6-sol",
+        "input": "Reply exactly: OK",
+        "max_output_tokens": 16,
+        "stream": False,
+        "store": False,
+    }
+).encode("utf-8")
+request = urllib.request.Request(
+    f"http://127.0.0.1:{port}/v1/responses",
+    data=payload,
+    headers={"content-type": "application/json"},
+    method="POST",
+)
+try:
+    with urllib.request.urlopen(request, timeout=120) as response:
+        if response.status != 200:
+            raise RuntimeError(f"HTTP {response.status}")
+        body = json.loads(response.read())
+        if not body.get("id") or not body.get("model") or not body.get("output"):
+            raise RuntimeError("response is missing required fields")
+except Exception as error:
+    raise SystemExit(f"upstream verification failed: {error}") from error
+PY
+    then
+        restore_previous "real upstream verification failed"
+    fi
+fi
+
+printf 'CraneSched-Codex credential provisioned; %s is active.\n' "${SERVICE}"
+if ((verify_upstream == 1)); then
+    printf 'Real upstream verification passed.\n'
+fi

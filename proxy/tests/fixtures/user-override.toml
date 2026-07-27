@@ -1,0 +1,13 @@
+model = "user-model"
+model_provider = "user_byok"
+
+[model_providers.user_byok]
+name = "User BYOK test provider"
+base_url = "http://127.0.0.1:65534/v1"
+wire_api = "responses"
+env_key = "CRANESCHED_CODEX_TEST_BYOK_KEY"
+requires_openai_auth = false
+
+[[skills.config]]
+name = "cranesched-skill"
+enabled = false

@@ -1,0 +1,81 @@
+name: Release RPM
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rpm-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'automation/codex-') &&
+      contains(github.event.pull_request.labels.*.name, 'codex-upgrade')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out the merged commit and submodules
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Rebuild and test from merged state
+        run: |
+          docker run --privileged --rm \
+            -e DNF_TRANSACTION_TEST=1 \
+            -e SYSTEM_CONFIG_RUNTIME_TEST=1 \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -w /workspace \
+            rockylinux:9 \
+            bash -euxo pipefail -c '
+              dnf --assumeyes install dnf-plugins-core epel-release
+              dnf config-manager --set-enabled crb || true
+              dnf --assumeyes install \
+                bubblewrap cpio findutils git gzip iproute jq \
+                procps-ng python3 python3-pyyaml ripgrep rpm rpm-build \
+                systemd tar util-linux
+              git config --global --add safe.directory /workspace
+              git config --global --add safe.directory /workspace/ref/codex
+              git config --global --add safe.directory /workspace/ref/CraneSched
+              tests/ci.sh
+            '
+
+      - name: Publish RPM and checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGED_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          version="$(jq -r .version packaging/codex.lock.json)"
+          rpm_release="$(jq -r .rpm_release packaging/codex.lock.json)"
+          tag="v${version}-${rpm_release}"
+          rpm_path="$(find dist -maxdepth 1 -type f \
+            -name "cranesched-codex-${version}-${rpm_release}.el9.x86_64.rpm" \
+            -print -quit)"
+          [[ -n "${rpm_path}" ]]
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            printf 'Release %s already exists.\n' "${tag}" >&2
+            exit 1
+          fi
+          sha256sum "${rpm_path}" >dist/SHA256SUMS
+          release_args=(
+            "${tag}"
+            "${rpm_path}"
+            dist/SHA256SUMS
+            --target "${MERGED_SHA}"
+            --title "CraneSched-Codex ${version}-${rpm_release}"
+            --generate-notes
+          )
+          if jq -e .prerelease packaging/codex.lock.json >/dev/null; then
+            release_args+=(--prerelease)
+          fi
+          gh release create "${release_args[@]}"

@@ -1,0 +1,41 @@
+name: Compatibility
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository and submodules
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Run x86_64 EL9 compatibility and RPM checks
+        run: |
+          docker run --privileged --rm \
+            -e DNF_TRANSACTION_TEST=1 \
+            -e SYSTEM_CONFIG_RUNTIME_TEST=1 \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -w /workspace \
+            rockylinux:9 \
+            bash -euxo pipefail -c '
+              dnf --assumeyes install dnf-plugins-core epel-release
+              dnf config-manager --set-enabled crb || true
+              dnf --assumeyes install \
+                bubblewrap cpio findutils git gzip iproute jq \
+                procps-ng python3 python3-pyyaml ripgrep rpm rpm-build \
+                systemd tar util-linux
+              git config --global --add safe.directory /workspace
+              git config --global --add safe.directory /workspace/ref/codex
+              git config --global --add safe.directory /workspace/ref/CraneSched
+              tests/ci.sh
+            '

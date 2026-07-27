@@ -1,0 +1,46 @@
+[Unit]
+Description=CraneSched-Codex Responses API proxy
+Documentation=https://github.com/openai/codex/tree/main/codex-rs/responses-api-proxy
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+SELinuxContext=system_u:system_r:unconfined_service_t:s0
+ExecStart=/usr/libexec/cranesched-codex/cranesched-codex-proxy --port 617 --upstream-url=https://chat.pku.edu.cn/deployer/coding_tatu/v1/responses
+LoadCredential=api-key:/etc/codex/proxy-api-key
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=15s
+UMask=0077
+LimitCORE=0
+LimitMEMLOCK=64K
+LimitNOFILE=8192
+MemoryHigh=1G
+MemoryMax=2G
+TasksMax=256
+CPUQuota=400%
+
+# The service needs only outbound HTTPS and a loopback listener.
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

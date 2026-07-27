@@ -1,0 +1,18 @@
+model = "gpt-5.6-sol"
+model_provider = "pku"
+notify = ["sh", "-c", "printf \"done\""]
+
+[model_providers.other]
+base_url = "https://must-not-be-selected.invalid/v1"
+experimental_bearer_token = "wrong-token"
+
+[model_providers.pku] # the installer selects only this table
+name = "PKU \"coding\""
+base_url = "https://chat.pku.edu.cn/deployer/coding_tatu/v1"
+wire_api = "responses"
+experimental_bearer_token = "fixture-secret"
+requires_openai_auth = false
+
+[[skills.config]]
+path = "/example/ignored"
+enabled = true
