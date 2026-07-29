@@ -5,6 +5,10 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 
+concurrency:
+  group: compatibility-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -14,14 +18,35 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Check out repository and submodules
+      - name: Check out repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: recursive
           persist-credentials: false
 
+      - name: Determine compatibility scope
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          run_el9="$(
+            .github/scripts/compatibility-scope.sh \
+              --git-diff "${BASE_SHA}" "${HEAD_SHA}"
+          )"
+          [[ "${run_el9}" == false ]] || run_el9=true
+          printf 'run_el9=%s\n' "${run_el9}" >>"${GITHUB_OUTPUT}"
+
+      - name: Check out submodules
+        if: steps.scope.outputs.run_el9 == 'true'
+        run: git submodule update --init --recursive
+
+      - name: Skip EL9 checks for documentation-only changes
+        if: steps.scope.outputs.run_el9 == 'false'
+        run: printf 'Documentation-only change; required test check passed.\n'
+
       - name: Run x86_64 EL9 compatibility and RPM checks
+        if: steps.scope.outputs.run_el9 == 'true'
         run: |
           docker run --privileged --rm \
             -e DNF_TRANSACTION_TEST=1 \

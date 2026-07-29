@@ -11,7 +11,7 @@ must remain a symlink to this file.
 - Keep the RPM as the only deployment path and preserve the separation between
   the Managed Default and user BYOK.
 - The Codex Source Lock is the packaging version source. Use
-  `packaging/update-codex-lock.sh`; never move `ref/CraneSched` during a Codex
+  `packaging/update-codex-lock.sh`; never move `submodules/CraneSched` during a Codex
   update.
 - Never expose a real Codex or upstream credential in source, argv, environment,
   logs, Issues, PRs, Actions output, or artifacts. Follow

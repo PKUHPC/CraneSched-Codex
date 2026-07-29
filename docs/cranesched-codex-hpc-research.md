@@ -9,7 +9,7 @@
 3. 管理员配置只是默认值，不需要锁死；用户可以覆盖配置并 BYOK；
 4. 管理员在 RPM 中提供集群级默认 Skills，使用 Codex 的 Admin skill discovery 机制；Skills 默认可用，但用户可以按名称禁用。
 
-源码基线：`ref/codex` commit `61a44880a85d2fd0d8770908dea5733495e571c8`（2026-07-26）。官方文档交叉核验来源包括 [Config basics](https://learn.chatgpt.com/docs/config-file/config-basic)、[Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration) 和 [Build skills](https://learn.chatgpt.com/docs/build-skills)。
+源码基线：`submodules/codex` commit `61a44880a85d2fd0d8770908dea5733495e571c8`（2026-07-26）。官方文档交叉核验来源包括 [Config basics](https://learn.chatgpt.com/docs/config-file/config-basic)、[Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration) 和 [Build skills](https://learn.chatgpt.com/docs/build-skills)。
 
 结论很直接：
 
@@ -41,7 +41,7 @@ Upstream model API
 
 ## 1. 为什么 `/etc/codex/config.toml` 正好适合
 
-Unix 系统配置固定路径是 `/etc/codex/config.toml`：`ref/codex/codex-rs/config/src/loader/mod.rs:54-55,652-655`。
+Unix 系统配置固定路径是 `/etc/codex/config.toml`：`submodules/codex/codex-rs/config/src/loader/mod.rs:54-55,652-655`。
 
 普通配置的相关优先级从低到高是：
 
@@ -52,13 +52,13 @@ Unix 系统配置固定路径是 `/etc/codex/config.toml`：`ref/codex/codex-rs/
 5. trusted Project config
 6. Session flags，例如 `-c key=value`
 
-层级定义见 `ref/codex/codex-rs/config/src/config_layer_source.rs:28-47`，加载顺序见 `ref/codex/codex-rs/config/src/loader/mod.rs:225-367`。
+层级定义见 `submodules/codex/codex-rs/config/src/config_layer_source.rs:28-47`，加载顺序见 `submodules/codex/codex-rs/config/src/loader/mod.rs:225-367`。
 
 这意味着管理员可以提供默认 provider，而用户仍可覆盖它。此前把 System 层可覆盖视为问题，是基于“必须强制端点”的旧假设；在允许 BYOK 的需求下，这是需要保留的行为。
 
-项目配置有额外保护：repo 中的 `.codex/config.toml` 不能修改 `model_provider`、`model_providers`、`openai_base_url` 等凭据路由字段，避免恶意仓库改变凭据发送目的地；限制见 `ref/codex/codex-rs/config/src/loader/mod.rs:60-76`。用户本人仍可在用户配置、profile 或 CLI session override 中配置 BYOK。
+项目配置有额外保护：repo 中的 `.codex/config.toml` 不能修改 `model_provider`、`model_providers`、`openai_base_url` 等凭据路由字段，避免恶意仓库改变凭据发送目的地；限制见 `submodules/codex/codex-rs/config/src/loader/mod.rs:60-76`。用户本人仍可在用户配置、profile 或 CLI session override 中配置 BYOK。
 
-不需要使用 legacy `/etc/codex/managed_config.toml`。它是高优先级兼容层，会削弱“用户可以覆盖默认值”的预期，而且源码已经将其标记为 best-effort legacy 机制：`ref/codex/codex-rs/config/src/loader/mod.rs:369-373`。
+不需要使用 legacy `/etc/codex/managed_config.toml`。它是高优先级兼容层，会削弱“用户可以覆盖默认值”的预期，而且源码已经将其标记为 best-effort legacy 机制：`submodules/codex/codex-rs/config/src/loader/mod.rs:369-373`。
 
 ## 2. 默认 provider 配置
 
@@ -87,7 +87,7 @@ wire_api = "responses"
 requires_openai_auth = false
 ```
 
-`ModelProviderInfo` 原生支持 `base_url`、`wire_api` 和 `requires_openai_auth`：`ref/codex/codex-rs/model-provider-info/src/lib.rs:86-144`。这里故意不配置：
+`ModelProviderInfo` 原生支持 `base_url`、`wire_api` 和 `requires_openai_auth`：`submodules/codex/codex-rs/model-provider-info/src/lib.rs:86-144`。这里故意不配置：
 
 - `env_key`
 - `experimental_bearer_token`
@@ -119,7 +119,7 @@ export MY_PROVIDER_API_KEY="..."
 codex
 ```
 
-用户也可以用 profile 或 `-c` 做临时覆盖。`-c` 支持 dotted-path TOML override，实现在 `ref/codex/codex-rs/utils/cli/src/config_override.rs:15-83`。
+用户也可以用 profile 或 `-c` 做临时覆盖。`-c` 支持 dotted-path TOML override，实现在 `submodules/codex/codex-rs/utils/cli/src/config_override.rs:15-83`。
 
 管理员不需要为 BYOK 做额外开发。只要集群网络策略允许用户访问其自选 provider，现有配置优先级就会自然工作。
 
@@ -134,9 +134,9 @@ codex
 - 把 Key 存在用户可读的 `auth.json`；
 - 让 provider `auth.command` 输出真实 Key。
 
-文件认证模式会把凭据写到 `$CODEX_HOME/auth.json`；其结构和 0600 文件写入逻辑见 `ref/codex/codex-rs/login/src/auth/storage.rs:31-50,129-191`。0600 只能防止其他 UID，不能防止文件所有者本人读取。
+文件认证模式会把凭据写到 `$CODEX_HOME/auth.json`；其结构和 0600 文件写入逻辑见 `submodules/codex/codex-rs/login/src/auth/storage.rs:31-50,129-191`。0600 只能防止其他 UID，不能防止文件所有者本人读取。
 
-命令认证会启动 helper、捕获 stdout，并把完整 stdout trim 后作为 bearer 缓存在 Codex 内存中：`ref/codex/codex-rs/login/src/auth/external_bearer.rs:32-73,102-170`。所以它适合获取用户本来就有权看到的凭据，不适合向用户 UID 隐藏共享真实 Key。
+命令认证会启动 helper、捕获 stdout，并把完整 stdout trim 后作为 bearer 缓存在 Codex 内存中：`submodules/codex/codex-rs/login/src/auth/external_bearer.rs:32-73,102-170`。所以它适合获取用户本来就有权看到的凭据，不适合向用户 UID 隐藏共享真实 Key。
 
 ### 4.2 由独立权限域的代理持有 Key
 
@@ -160,7 +160,7 @@ codex
 - 向固定上游注入 `Authorization: Bearer <real-key>`；
 - 其他路径返回 403。
 
-行为说明见 `ref/codex/codex-rs/responses-api-proxy/README.md:29-40,59-80`，请求过滤和 header 替换实现见 `ref/codex/codex-rs/responses-api-proxy/src/lib.rs:138-204`。
+行为说明见 `submodules/codex/codex-rs/responses-api-proxy/README.md:29-40,59-80`，请求过滤和 header 替换实现见 `submodules/codex/codex-rs/responses-api-proxy/src/lib.rs:138-204`。
 
 它还进行了针对 Key 的进程加固：
 
@@ -169,7 +169,7 @@ codex
 - 读取 Key 后清零临时缓冲区；
 - 尝试对常驻 Key 内存执行 `mlock(2)`。
 
-入口见 `ref/codex/codex-rs/responses-api-proxy/src/main.rs:4-7`，Key 读取见 `ref/codex/codex-rs/responses-api-proxy/src/read_api_key.rs:72-180`，通用进程加固见 `ref/codex/codex-rs/process-hardening/src/lib.rs:8-54`。
+入口见 `submodules/codex/codex-rs/responses-api-proxy/src/main.rs:4-7`，Key 读取见 `submodules/codex/codex-rs/responses-api-proxy/src/read_api_key.rs:72-180`，通用进程加固见 `submodules/codex/codex-rs/process-hardening/src/lib.rs:8-54`。
 
 ### 5.1 生产使用注意事项
 
@@ -182,7 +182,7 @@ codex
 - 代理日志不得打印 request header、真实 Key 或完整 prompt/response；
 - 用固定版本、systemd restart policy 和健康检查保证服务可用性。
 
-源码 README 明确说明 `--http-shutdown` 和 `--dump-dir` 的行为：`ref/codex/codex-rs/responses-api-proxy/README.md:53-79`。
+源码 README 明确说明 `--http-shutdown` 和 `--dump-dir` 的行为：`submodules/codex/codex-rs/responses-api-proxy/README.md:53-79`。
 
 ### 5.2 单节点代理与中央代理
 
@@ -191,7 +191,7 @@ codex
 | 每个 login/compute 节点运行代理 | 配置简单，可直接使用源码自带的 loopback proxy | Key 要分发到更多节点，代理实例更多 |
 | 中央内部代理 | Key 副本少，升级和监控集中 | 需要内部服务地址、TLS、容量和高可用 |
 
-源码自带代理固定绑定 `127.0.0.1`，适合单节点或每节点部署：`ref/codex/codex-rs/responses-api-proxy/src/lib.rs:138-142`。若已有内部 API gateway，中央方案通常更易运维；由于不要求用户认证，可以仅依赖集群内部网络可达性。
+源码自带代理固定绑定 `127.0.0.1`，适合单节点或每节点部署：`submodules/codex/codex-rs/responses-api-proxy/src/lib.rs:138-142`。若已有内部 API gateway，中央方案通常更易运维；由于不要求用户认证，可以仅依赖集群内部网络可达性。
 
 无论选哪一种，所有可访问代理的用户都能直接用 `curl` 调用并消耗共享额度。隐藏 Key 与控制用量是两个不同目标；当前范围只解决前者。
 
@@ -208,7 +208,7 @@ codex
     references/
 ```
 
-Codex 会从 System config 所在目录派生 `/etc/codex/skills`，并将其标记为 Admin scope：`ref/codex/codex-rs/core-skills/src/loader.rs:292-370`。官方 [Build skills](https://learn.chatgpt.com/docs/build-skills) 也将该路径列为 Admin skill location。
+Codex 会从 System config 所在目录派生 `/etc/codex/skills`，并将其标记为 Admin scope：`submodules/codex/codex-rs/core-skills/src/loader.rs:292-370`。官方 [Build skills](https://learn.chatgpt.com/docs/build-skills) 也将该路径列为 Admin skill location。
 
 Skills 使用渐进式加载：
 
@@ -216,9 +216,9 @@ Skills 使用渐进式加载：
 2. 默认把可用 Skill 的元数据放入模型上下文；
 3. 用户显式 `$skill-name` 或模型匹配描述时，才读取完整 `SKILL.md`。
 
-模型上下文构造见 `ref/codex/codex-rs/core/src/context/available_skills_instructions.rs:1-52`，正文注入见 `ref/codex/codex-rs/core-skills/src/injection.rs:72-126`。
+模型上下文构造见 `submodules/codex/codex-rs/core/src/context/available_skills_instructions.rs:1-52`，正文注入见 `submodules/codex/codex-rs/core-skills/src/injection.rs:72-126`。
 
-用户可以通过 `[[skills.config]]` 按名称禁用某个 Skill；规则实现见 `ref/codex/codex-rs/core-skills/src/config_rules.rs:16-88`。这适合“提供默认值但不强制”的模式，因此不需要新增 Skills requirements 或修改加载器。
+用户可以通过 `[[skills.config]]` 按名称禁用某个 Skill；规则实现见 `submodules/codex/codex-rs/core-skills/src/config_rules.rs:16-88`。这适合“提供默认值但不强制”的模式，因此不需要新增 Skills requirements 或修改加载器。
 
 ```toml
 [[skills.config]]
@@ -243,7 +243,7 @@ RPM 将 `/etc/codex/skills` 作为包管理内容统一升级和卸载。管理�
 - deny-read 路径；
 - managed hooks、MCP 或 plugin policy。
 
-当前 requirements schema 没有 provider/base URL/Skills 强制字段：`ref/codex/codex-rs/config/src/config_requirements.rs:873-914`。在修正后的需求里，这不再是缺口。
+当前 requirements schema 没有 provider/base URL/Skills 强制字段：`submodules/codex/codex-rs/config/src/config_requirements.rs:873-914`。在修正后的需求里，这不再是缺口。
 
 还需注意 Codex sandbox 约束的是 Codex 启动的工具子进程，不是用户自己的 shell，也不是 Codex 主进程的 provider HTTP 请求。因此它不是隐藏代理 Key 的必要组成部分。
 

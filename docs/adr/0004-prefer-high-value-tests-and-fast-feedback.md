@@ -19,6 +19,13 @@ once through the RPM build path, and Skill validation is owned by packaging.
 Workflow changes use review and `actionlint` rather than a second hand-written
 model of the YAML.
 
+Compatibility keeps its required `test` result for every Ready PR, but it does
+not initialize submodules or start the privileged EL9 container when every
+changed path belongs to an explicit documentation-only allowlist. Empty,
+mixed, and unrecognized diffs run the full suite. PR-scoped concurrency also
+cancels an in-progress run when a newer head supersedes it. The focused scope
+test protects this fail-safe boundary rather than mirroring workflow YAML.
+
 The official Codex binary is large, so RPM's default zstd level 19 dominated CI
 runtime without changing package semantics. RPM payloads use zstd level 7 to
 trade a modest increase in artifact size for substantially faster build and

@@ -55,7 +55,7 @@ case "$(uname -m)" in
 esac
 [[ "${source_target}" == "${rpm_arch}-unknown-linux-musl" ]] ||
     die "Source Lock target ${source_target} does not match ${rpm_arch}"
-[[ "$(git -C "${repo_dir}/ref/codex" rev-parse HEAD)" == "${source_commit}" ]] ||
+[[ "$(git -C "${repo_dir}/submodules/codex" rev-parse HEAD)" == "${source_commit}" ]] ||
     die "Codex submodule does not match Source Lock commit ${source_commit}"
 
 native_codex="$("${repo_dir}/packaging/fetch-codex.sh" --lock "${source_lock}")"
@@ -85,8 +85,8 @@ install -m 0755 -- \
 install -m 0755 -- \
     "${script_dir}/cranesched-codex-provision" \
     "${build_root}/SOURCES/cranesched-codex-provision"
-install -m 0644 -- "${repo_dir}/ref/codex/LICENSE" "${build_root}/SOURCES/LICENSE"
-install -m 0644 -- "${repo_dir}/ref/codex/NOTICE" "${build_root}/SOURCES/NOTICE"
+install -m 0644 -- "${repo_dir}/submodules/codex/LICENSE" "${build_root}/SOURCES/LICENSE"
+install -m 0644 -- "${repo_dir}/submodules/codex/NOTICE" "${build_root}/SOURCES/NOTICE"
 install -m 0644 -- "${repo_dir}/README.md" "${build_root}/SOURCES/README.md"
 cp -a -- "${repo_dir}/skills" "${build_root}/SOURCES/skills"
 printf 'Codex-Version: %s\nCodex-Commit: %s\nArchitecture: %s\nAsset-URL: %s\nAsset-SHA256: %s\nBinary-SHA256: %s\n' \

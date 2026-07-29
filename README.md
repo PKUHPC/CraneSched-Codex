@@ -47,8 +47,8 @@ For an existing clone:
 git submodule update --init --recursive
 ```
 
-`ref/codex` is pinned to the source commit matching the packaged Codex release.
-`ref/CraneSched` is pinned independently and is not moved by Codex upgrades.
+`submodules/codex` is pinned to the source commit matching the packaged Codex release.
+`submodules/CraneSched` is pinned independently and is not moved by Codex upgrades.
 
 ## Build
 
@@ -206,6 +206,12 @@ strict system config, and Admin Skill discovery without printing the Key.
 
 No normal CI job receives a real upstream Key. A real request is an explicit,
 administrator-controlled deployment test only.
+
+Compatibility cancels an older in-progress run when the same PR receives a
+new head. A Ready PR that changes only the explicit documentation allowlist
+still reports the required `test` result but skips submodule initialization and
+the privileged EL9 container. Mixed, empty, or unrecognized diffs run the full
+suite; `README.md` is not skipped because it is included in the RPM payload.
 
 ## Codex upgrades
 

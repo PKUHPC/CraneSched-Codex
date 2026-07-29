@@ -63,12 +63,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "${branch}"
-          git add packaging/codex.lock.json ref/codex
+          git add packaging/codex.lock.json submodules/codex
           git diff --cached --quiet && {
             printf 'The requested version and RPM release produce no repository change.\n' >&2
             exit 1
           }
-          git commit -m "chore: upgrade Codex to ${CODEX_VERSION}-${RPM_RELEASE}"
+          git commit -m "chore(upgrade): upgrade Codex to ${CODEX_VERSION}-${RPM_RELEASE}"
           git \
             -c credential.helper= \
             -c credential.helper='!gh auth git-credential' \
@@ -78,6 +78,6 @@ jobs:
             --head "${branch}" \
             --draft \
             --label codex-upgrade \
-            --title "Upgrade Codex to ${CODEX_VERSION}-${RPM_RELEASE}" \
+            --title "chore(upgrade): upgrade Codex to ${CODEX_VERSION}-${RPM_RELEASE}" \
             --body "Automated Codex Source Lock and submodule update. Review this Draft PR, then mark it ready to start Compatibility CI. Approve and squash-merge only after the required check passes.")"
           printf 'Created Draft PR for administrator review: %s\n' "${pr_url}"

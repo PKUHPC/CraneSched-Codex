@@ -9,7 +9,7 @@ cleanup() {
 trap cleanup EXIT
 
 git clone --quiet --shared --no-checkout \
-    "${repo_dir}/ref/codex" "${test_dir}/codex"
+    "${repo_dir}/submodules/codex" "${test_dir}/codex"
 
 jq -n '{
     tag_name: "rust-v0.145.0",

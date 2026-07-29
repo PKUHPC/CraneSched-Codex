@@ -1,6 +1,6 @@
-[submodule "ref/codex"]
-	path = ref/codex
+[submodule "submodules/codex"]
+	path = submodules/codex
 	url = https://github.com/openai/codex.git
-[submodule "ref/CraneSched"]
-	path = ref/CraneSched
+[submodule "submodules/CraneSched"]
+	path = submodules/CraneSched
 	url = https://github.com/PKUHPC/CraneSched.git

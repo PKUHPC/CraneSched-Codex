@@ -4,7 +4,7 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd -- "${script_dir}/.." && pwd)"
 lock_path="${script_dir}/codex.lock.json"
-codex_repo="${repo_dir}/ref/codex"
+codex_repo="${repo_dir}/submodules/codex"
 
 usage() {
     cat <<'EOF'
