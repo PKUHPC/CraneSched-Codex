@@ -30,8 +30,8 @@ not authenticate users, apply per-user quotas, or provide accounting.
 
 Users control their own Codex configuration and can select BYOK. Administrators
 must treat RPM publication, system configuration, the provisioner source
-configuration, and the GitHub App used by the Upgrade Train as privileged
-surfaces.
+configuration, the Upgrade workflow's write-scoped `GITHUB_TOKEN`, and `main`
+branch protection as privileged surfaces.
 
 Normal compatibility CI uses a dummy token and local mock upstream. Real Keys
 must not be available to pull-request or fork-triggered workflows.

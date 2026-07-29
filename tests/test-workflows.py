@@ -51,20 +51,41 @@ workflows = {name: load_workflow(path) for name, path in paths.items()}
 
 upgrade = workflows["upgrade"]
 assert "workflow_dispatch" in upgrade["on"]
+assert upgrade["permissions"] == {
+    "contents": "write",
+    "pull-requests": "write",
+}
+assert not contains_string(upgrade, "actions/create-github-app-token")
+assert not contains_string(upgrade, "CRANESCHED_CODEX_APP")
+assert not contains_string(upgrade, "secrets.")
+assert contains_string(upgrade, "github.token")
 upgrade_steps = steps(upgrade, "prepare-upgrade")
-assert any(step.get("uses") == "actions/create-github-app-token@v2" for step in upgrade_steps)
-assert contains_string(upgrade, "CRANESCHED_CODEX_APP_ID")
-assert contains_string(upgrade, "CRANESCHED_CODEX_APP_PRIVATE_KEY")
+checkout_step = next(
+    step for step in upgrade_steps if step.get("uses") == "actions/checkout@v4"
+)
+assert checkout_step["with"]["persist-credentials"] == "false"
 upgrade_run = run_script(upgrade, "prepare-upgrade")
 assert "packaging/update-codex-lock.sh" in upgrade_run
 assert "gh pr create" in upgrade_run
-assert "gh pr merge" in upgrade_run and "--auto" in upgrade_run
+assert "gh auth git-credential" in upgrade_run
+assert "--draft" in upgrade_run
+assert "gh pr merge" not in upgrade_run and "--auto" not in upgrade_run
+assert "github-actions[bot]" in upgrade_run
 assert "git add packaging/codex.lock.json ref/codex" in upgrade_run
 assert "git add packaging/codex.lock.json ref/codex ref/CraneSched" not in upgrade_run
 assert not contains_string(upgrade, "prerelease")
 
 compatibility = workflows["compatibility"]
 assert compatibility["on"]["pull_request"]["branches"] == ["main"]
+assert compatibility["on"]["pull_request"]["types"] == [
+    "opened",
+    "synchronize",
+    "reopened",
+    "ready_for_review",
+]
+assert compatibility["jobs"]["test"]["if"] == (
+    "github.event.pull_request.draft == false"
+)
 assert ".github/scripts/run-el9-ci.sh" in run_script(compatibility, "test")
 assert not contains_string(compatibility, "secrets.")
 
@@ -76,6 +97,9 @@ assert "github.event.pull_request.merged == true" in release_job["if"]
 assert "automation/codex-" in release_job["if"]
 assert contains_string(release, "github.event.pull_request.merge_commit_sha")
 release_run = run_script(release, "release")
+assert ".allow_squash_merge" in release_run
+assert ".allow_merge_commit | not" in release_run
+assert ".allow_rebase_merge | not" in release_run
 assert ".github/scripts/run-el9-ci.sh" in release_run
 assert "gh release create" in release_run
 assert 'cd dist && sha256sum "${rpm_name}"' in release_run

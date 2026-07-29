@@ -41,7 +41,11 @@ not yet implemented.
   simplifies a public interface.
 - Structured files are read with structured parsers such as `jq` or Python
   JSON/YAML libraries, not line-oriented string extraction.
-- Never print, log, archive, or place a real credential in argv or environment.
+- Never print, log, archive, or place a real Codex or upstream API credential
+  in argv or environment.
+- Short-lived platform workflow tokens may use the platform's supported secret
+  environment variables, scoped to one step with least privilege. Never print
+  or persist them.
 
 ## Tests
 

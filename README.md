@@ -223,21 +223,26 @@ The workflow:
 3. moves only the Codex submodule;
 4. downloads and validates the new binary;
 5. builds and tests the RPM without a real Key;
-6. creates a GitHub App-authored upgrade PR and enables auto-merge;
-7. lets the pull-request compatibility workflow repeat the clean checks; and
-8. publishes the RPM and SHA-256 file from the merged commit.
+6. uses the ephemeral repository `GITHUB_TOKEN` to create a Draft upgrade PR;
+7. waits for an administrator to review the diff and mark the PR ready;
+8. runs the pull-request Compatibility checks after that human event;
+9. requires administrator approval and a manual squash merge; and
+10. publishes the RPM and SHA-256 file from the merged commit.
 
-Required repository secrets:
+The repository Actions settings must allow `GITHUB_TOKEN` to create pull
+requests. The Upgrade workflow grants it only `Contents: write` and
+`Pull requests: write`; no long-lived release credential or GitHub App secret is
+required. Because GitHub suppresses ordinary workflow events caused by
+`GITHUB_TOKEN`, the generated PR remains Draft until an administrator clicks
+**Ready for review**. That human event starts the first Compatibility run.
 
-```text
-CRANESCHED_CODEX_APP_ID
-CRANESCHED_CODEX_APP_PRIVATE_KEY
-```
-
-The GitHub App needs repository `Contents: write` and `Pull requests: write`.
-The repository must allow auto-merge, protect `main`, and require the
-`Compatibility` check. Releases are never created from an uncommitted workflow
-workspace. This initial repository setup does not manually publish a release.
+`main` must require the Compatibility `test` check and one approving review,
+including for administrators. The repository must allow squash merges and
+disable merge commits and rebase merges. The Upgrade workflow never merges its
+own PR. Releases are created only after an administrator squash-merges a
+reviewed, green upgrade PR, and are always rebuilt from the resulting committed
+state. The Release workflow verifies the squash-only repository policy again
+before building or publishing an RPM.
 
 ## Security reporting
 

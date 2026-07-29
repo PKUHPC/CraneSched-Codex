@@ -22,6 +22,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      - name: Verify squash-only repository policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          policy_ok="$(gh api "repos/${GITHUB_REPOSITORY}" \
+            --jq '.allow_squash_merge and (.allow_merge_commit | not) and (.allow_rebase_merge | not)')"
+          if [[ "${policy_ok}" != "true" ]]; then
+            printf 'Release requires squash-only repository merge settings.\n' >&2
+            exit 1
+          fi
+
       - name: Check out the merged commit and submodules
         uses: actions/checkout@v4
         with:

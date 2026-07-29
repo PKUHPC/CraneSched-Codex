@@ -14,7 +14,8 @@ on:
         default: "1"
         type: string
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 concurrency:
   group: codex-upgrade
@@ -25,24 +26,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Create upgrade GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.CRANESCHED_CODEX_APP_ID }}
-          private-key: ${{ secrets.CRANESCHED_CODEX_APP_PRIVATE_KEY }}
-
       - name: Check out main and submodules
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
           submodules: recursive
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ github.token }}
+          persist-credentials: false
 
       - name: Update Codex Source Lock and submodule
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           CODEX_VERSION: ${{ inputs.codex_version }}
           RPM_RELEASE: ${{ inputs.rpm_release }}
         run: |
@@ -58,15 +53,15 @@ jobs:
             rockylinux:9 \
             bash .github/scripts/run-el9-ci.sh
 
-      - name: Create upgrade PR and enable auto-merge
+      - name: Create draft upgrade PR
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           CODEX_VERSION: ${{ inputs.codex_version }}
           RPM_RELEASE: ${{ inputs.rpm_release }}
         run: |
           branch="automation/codex-${CODEX_VERSION}-${RPM_RELEASE}-${GITHUB_RUN_ID}"
-          git config user.name "cranesched-codex-upgrader[bot]"
-          git config user.email "cranesched-codex-upgrader[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "${branch}"
           git add packaging/codex.lock.json ref/codex
           git diff --cached --quiet && {
@@ -74,11 +69,15 @@ jobs:
             exit 1
           }
           git commit -m "chore: upgrade Codex to ${CODEX_VERSION}-${RPM_RELEASE}"
-          git push --set-upstream origin "${branch}"
+          git \
+            -c credential.helper= \
+            -c credential.helper='!gh auth git-credential' \
+            push --set-upstream origin "${branch}"
           pr_url="$(gh pr create \
             --base main \
             --head "${branch}" \
+            --draft \
             --label codex-upgrade \
             --title "Upgrade Codex to ${CODEX_VERSION}-${RPM_RELEASE}" \
-            --body "Automated Codex Source Lock and submodule update. Compatibility and RPM checks must pass before merge.")"
-          gh pr merge "${pr_url}" --auto --squash --delete-branch
+            --body "Automated Codex Source Lock and submodule update. Review this Draft PR, then mark it ready to start Compatibility CI. Approve and squash-merge only after the required check passes.")"
+          printf 'Created Draft PR for administrator review: %s\n' "${pr_url}"
