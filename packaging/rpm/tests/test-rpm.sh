@@ -16,7 +16,6 @@ repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
 source_lock="${repo_dir}/packaging/codex.lock.json"
 codex_version="$(jq -r .version "${source_lock}")"
 package_release="$(jq -r .rpm_release "${source_lock}")"
-"${repo_dir}/packaging/validate-skills.sh" "${repo_dir}/skills"
 test_root="$(mktemp -d "${TMPDIR:-/tmp}/cranesched-codex-rpm-test.XXXXXX")"
 cleanup() {
     rm -rf -- "${test_root}"

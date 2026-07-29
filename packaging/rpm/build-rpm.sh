@@ -99,6 +99,7 @@ install -m 0644 -- "${script_dir}/cranesched-codex.spec" \
 rpmbuild -bb \
     --target "${rpm_arch}" \
     --define "_topdir ${build_root}" \
+    --define "_binary_payload w7.zstdio" \
     --define "codex_version ${codex_version}" \
     --define "package_release ${package_release}" \
     "${build_root}/SPECS/cranesched-codex.spec" >&2

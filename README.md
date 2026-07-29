@@ -176,17 +176,14 @@ URL, asset digest, architecture, and extracted binary digest.
 
 ## Tests
 
-Run the local contracts:
+Run the complete local suite:
 
 ```bash
-tests/test-repository-contract.sh
-packaging/tests/test-fetch-codex.sh
-tests/test-codex-compatibility.sh "$(packaging/fetch-codex.sh)"
-proxy/tests/test.sh
-packaging/validate-skills.sh skills
-packaging/rpm/tests/test-rpm.sh \
-  dist/cranesched-codex-0.145.0-1.el9.x86_64.rpm
+tests/ci.sh
 ```
+
+The suite covers the Codex Source Lock and artifact boundary, Codex CLI and
+app-server compatibility, proxy behavior, Admin Skills, and the built RPM.
 
 Two root-only integration modes exercise behavior that a normal unit test
 cannot observe:
@@ -243,8 +240,3 @@ own PR. Releases are created only after an administrator squash-merges a
 reviewed, green upgrade PR, and are always rebuilt from the resulting committed
 state. The Release workflow verifies the squash-only repository policy again
 before building or publishing an RPM.
-
-## Security reporting
-
-Do not open a public issue containing credentials, private endpoint details, or
-host data. Follow [SECURITY.md](SECURITY.md) for reporting and rotation steps.

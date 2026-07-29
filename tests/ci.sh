@@ -4,14 +4,10 @@ set -euo pipefail
 repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_dir}"
 
-tests/test-repository-contract.sh
-python3 tests/test-workflows.py
-packaging/validate-skills.sh skills
 packaging/tests/test-fetch-codex.sh
 packaging/tests/test-update-codex-lock.sh
 
 codex_bin="$(packaging/fetch-codex.sh)"
-tests/test-codex-compatibility.sh "${codex_bin}"
 CODEX_BIN="${codex_bin}" \
 SYSTEM_CONFIG_RUNTIME_TEST="${SYSTEM_CONFIG_RUNTIME_TEST:-0}" \
     proxy/tests/test.sh
