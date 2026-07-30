@@ -68,11 +68,12 @@ jobs:
             exit 1
           fi
           rpm_name="$(basename -- "${rpm_path}")"
-          (cd dist && sha256sum "${rpm_name}" >SHA256SUMS)
+          checksum_path="${RUNNER_TEMP}/SHA256SUMS"
+          (cd dist && sha256sum "${rpm_name}") >"${checksum_path}"
           release_args=(
             "${tag}"
             "${rpm_path}"
-            dist/SHA256SUMS
+            "${checksum_path}"
             --target "${MERGED_SHA}"
             --title "CraneSched-Codex ${version}-${rpm_release}"
             --generate-notes
