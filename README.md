@@ -34,24 +34,22 @@ does not implement per-user identity, quota, or accounting.
 
 ## Install the latest RPM
 
-Download the RPM and `SHA256SUMS` from the
+Download the RPM from the
 [latest GitHub Release](https://github.com/Nativu5/CraneSched-Codex/releases/latest).
 The repository is private, so the downloading account must have repository
-access. On a workstation with an authenticated GitHub CLI, download both files
-into a clean directory:
+access. On a workstation with an authenticated GitHub CLI, download it into a
+clean directory:
 
 ```bash
 release_dir="$(mktemp -d)"
 gh release download \
   --repo Nativu5/CraneSched-Codex \
   --pattern 'cranesched-codex-*.el9.x86_64.rpm' \
-  --pattern SHA256SUMS \
   --dir "${release_dir}"
 cd "${release_dir}"
-sha256sum --check SHA256SUMS
 ```
 
-Transfer the verified files to the target node if the node cannot access
+Transfer the RPM to the target node if the node cannot access
 GitHub. Install from a clean directory containing exactly one downloaded RPM:
 
 ```bash
@@ -141,8 +139,8 @@ enabled = false
 
 ## Upgrade
 
-Download the latest RPM and checksum into a new directory, verify
-`SHA256SUMS`, and run the same DNF command used for installation:
+Download the latest RPM into a new directory and run the same DNF command used
+for installation:
 
 ```bash
 sudo dnf install ./cranesched-codex-*.el9.x86_64.rpm
@@ -288,9 +286,9 @@ sudo dnf install rpm-build rpm-build-libs rpm cpio curl jq tar gzip git ripgrep
 ```
 
 The build reads `packaging/codex.lock.json`, downloads the named official Codex
-release asset, verifies its SHA-256 digest, runs the compatibility contract,
-and writes a versioned RPM under `dist/`. Downloaded assets are cached under
-`dist/cache/`; neither the cache nor RPMs are tracked by Git.
+release asset, verifies its SHA-256 digest, and writes a versioned RPM under
+`dist/`. Downloaded assets are cached under `dist/cache/`; neither the cache nor
+RPMs are tracked by Git. Run `tests/ci.sh` for the complete compatibility suite.
 
 `submodules/codex` is pinned to the source commit matching the packaged Codex
 release. `submodules/CraneSched` is pinned independently and is never moved by a
@@ -323,9 +321,10 @@ starts the `Upgrade Codex` workflow with a Codex version and RPM release number.
 Keeping the Codex version unchanged while incrementing the RPM release produces
 a packaging-only release.
 
-The workflow verifies the official artifact and builds the RPM, then creates a
-Draft `codex-upgrade` PR. A human marks it ready, waits for Compatibility CI,
-approves it, and squash-merges it. The guarded Release workflow rebuilds from
-the merged commit and publishes the RPM plus `SHA256SUMS` to GitHub Releases.
+The workflow verifies the official artifact without building an RPM, then
+creates a Draft `codex-upgrade` PR. A human marks it ready, waits for
+Compatibility CI to build and test the RPM, approves it, and squash-merges it.
+The guarded Release workflow rebuilds from the merged commit, validates the
+release artifact, and publishes the RPM to GitHub Releases.
 Manual asset publication and releases from uncommitted workflow state are not
 supported.

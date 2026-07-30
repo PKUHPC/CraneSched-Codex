@@ -43,15 +43,14 @@ jobs:
         run: |
           packaging/update-codex-lock.sh "${CODEX_VERSION}" "${RPM_RELEASE}"
 
-      - name: Run x86_64 EL9 preflight
-        run: |
-          docker run --privileged --rm \
-            -e DNF_TRANSACTION_TEST=1 \
-            -e SYSTEM_CONFIG_RUNTIME_TEST=1 \
-            -v "${GITHUB_WORKSPACE}:/workspace" \
-            -w /workspace \
-            rockylinux:9 \
-            bash .github/scripts/run-el9-ci.sh
+      - name: Restore verified Codex artifact cache
+        uses: actions/cache@v4
+        with:
+          path: dist/cache
+          key: codex-source-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packaging/codex.lock.json') }}
+
+      - name: Verify Source Lock, submodule, and official artifact
+        run: packaging/verify-codex-source.sh
 
       - name: Create draft upgrade PR
         env:

@@ -15,9 +15,9 @@ high-risk boundary it catches and explain why existing validation is
 insufficient.
 
 The main CI entry point also avoids duplicate checks. Codex compatibility runs
-once through the RPM build path, and Skill validation is owned by packaging.
-Workflow changes use review and `actionlint` rather than a second hand-written
-model of the YAML.
+once in the full Compatibility suite, independently of the reusable RPM build
+path, and Skill validation is owned by packaging. Workflow changes use review
+and `actionlint` rather than a second hand-written model of the YAML.
 
 Compatibility keeps its required `test` result for every Ready PR, but it does
 not initialize submodules or start the privileged EL9 container when every

@@ -59,7 +59,6 @@ esac
     die "Codex submodule does not match Source Lock commit ${source_commit}"
 
 native_codex="$("${repo_dir}/packaging/fetch-codex.sh" --lock "${source_lock}")"
-"${repo_dir}/tests/test-codex-compatibility.sh" "${native_codex}" >&2
 binary_sha256="$(sha256sum "${native_codex}" | awk '{ print $1 }')"
 build_root="$(mktemp -d "${TMPDIR:-/tmp}/cranesched-codex-rpm.XXXXXX")"
 cleanup() {

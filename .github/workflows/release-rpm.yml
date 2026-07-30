@@ -41,17 +41,21 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Rebuild and test from merged state
+      - name: Restore verified Codex artifact cache
+        uses: actions/cache@v4
+        with:
+          path: dist/cache
+          key: codex-source-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packaging/codex.lock.json') }}
+
+      - name: Rebuild and validate release artifact from merged state
         run: |
           docker run --privileged --rm \
-            -e DNF_TRANSACTION_TEST=1 \
-            -e SYSTEM_CONFIG_RUNTIME_TEST=1 \
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -w /workspace \
             rockylinux:9 \
-            bash .github/scripts/run-el9-ci.sh
+            bash .github/scripts/run-el9-ci.sh release
 
-      - name: Publish RPM and checksum
+      - name: Publish RPM
         env:
           GH_TOKEN: ${{ github.token }}
           MERGED_SHA: ${{ github.event.pull_request.merge_commit_sha }}
@@ -67,13 +71,9 @@ jobs:
             printf 'Release %s already exists.\n' "${tag}" >&2
             exit 1
           fi
-          rpm_name="$(basename -- "${rpm_path}")"
-          checksum_path="${RUNNER_TEMP}/SHA256SUMS"
-          (cd dist && sha256sum "${rpm_name}") >"${checksum_path}"
           release_args=(
             "${tag}"
             "${rpm_path}"
-            "${checksum_path}"
             --target "${MERGED_SHA}"
             --title "CraneSched-Codex ${version}-${rpm_release}"
             --generate-notes

@@ -36,6 +36,15 @@ codex_path="$(CODEX_CACHE_DIR="${test_dir}/cache" \
 [[ -x "${codex_path}" ]]
 cmp --silent "${fixture_elf}" "${codex_path}"
 
+# A corrupt cached archive must be replaced and verified before extraction.
+printf 'corrupt cache\n' >"${test_dir}/cache/codex-x86_64-unknown-linux-musl.tar.gz"
+refetched_path="$(CODEX_CACHE_DIR="${test_dir}/cache" \
+    "${repo_dir}/packaging/fetch-codex.sh" \
+    --lock "${test_dir}/codex.lock.json")"
+[[ "${refetched_path}" == "${codex_path}" ]]
+[[ "$(sha256sum "${test_dir}/cache/codex-x86_64-unknown-linux-musl.tar.gz" | \
+    awk '{ print $1 }')" == "${asset_sha256}" ]]
+
 # A valid cache must work after its source URL disappears.
 rm -f -- "${test_dir}/codex.tar.gz"
 cached_path="$(CODEX_CACHE_DIR="${test_dir}/cache" \

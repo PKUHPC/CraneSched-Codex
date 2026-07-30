@@ -41,6 +41,13 @@ jobs:
         if: steps.scope.outputs.run_el9 == 'true'
         run: git submodule update --init --recursive
 
+      - name: Restore verified Codex artifact cache
+        if: steps.scope.outputs.run_el9 == 'true'
+        uses: actions/cache@v4
+        with:
+          path: dist/cache
+          key: codex-source-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packaging/codex.lock.json') }}
+
       - name: Skip EL9 checks for documentation-only changes
         if: steps.scope.outputs.run_el9 == 'false'
         run: printf 'Documentation-only change; required test check passed.\n'
@@ -54,4 +61,4 @@ jobs:
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -w /workspace \
             rockylinux:9 \
-            bash .github/scripts/run-el9-ci.sh
+            bash .github/scripts/run-el9-ci.sh compatibility
