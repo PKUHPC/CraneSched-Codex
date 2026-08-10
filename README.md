@@ -17,28 +17,29 @@ user Codex
     v
 cranesched-codex-proxy.service
     |
-    | replaces Authorization with a systemd credential
+    | wrapper reads root-only endpoint and token configuration
     v
-https://chat.pku.edu.cn/deployer/coding_tatu/v1/responses
+administrator-selected Responses endpoint
 ```
 
 The proxy listens only on loopback and accepts only the Responses path. The
-upstream bearer token is stored at `/etc/codex/proxy-api-key`, mode `0400`, and
-is opened by systemd as a service credential. It is never included in the RPM,
-repository, process arguments, or process environment.
+upstream endpoint and bearer token are stored in
+`/etc/codex/proxy-upstream.conf`, owned by `root:root` with mode `0600`. The
+wrapper reads the endpoint and passes the token to the proxy through stdin. The
+token is never included in the RPM, repository, process arguments, or process
+environment.
 
 This is credential concealment, not multi-user authentication. Any local user
-can consume the shared upstream allocation. The service applies process,
-memory, CPU, file-descriptor, capability, and systemd sandbox limits, but it
-does not implement per-user identity, quota, or accounting.
+can consume the shared upstream allocation. The proxy runs as root so it can
+read the root-only configuration directly. The unit retains process, memory,
+CPU, file-descriptor, capability, and systemd sandbox limits, but it does not
+implement per-user identity, quota, or accounting.
 
 ## Install the latest RPM
 
 Download the RPM from the
 [latest GitHub Release](https://github.com/Nativu5/CraneSched-Codex/releases/latest).
-The repository is private, so the downloading account must have repository
-access. On a workstation with an authenticated GitHub CLI, download it into a
-clean directory:
+On a workstation with GitHub CLI, download it into a clean directory:
 
 ```bash
 release_dir="$(mktemp -d)"
@@ -56,43 +57,52 @@ GitHub. Install from a clean directory containing exactly one downloaded RPM:
 sudo dnf install ./cranesched-codex-*.el9.x86_64.rpm
 ```
 
-The RPM requires `bubblewrap`, `ripgrep`, and `python3-tomli`. Ensure those
-packages are available from the node's enabled EL9 repositories or internal
-mirror; DNF resolves them automatically.
+The RPM requires `bubblewrap` and `ripgrep`. Ensure those packages are
+available from the node's enabled EL9 repositories or internal mirror; DNF
+resolves them automatically.
 
-Installation deliberately leaves the proxy stopped because no credential is
-stored in the package.
+Installation deliberately leaves the proxy stopped because no upstream
+configuration is stored in the package.
 
-## Provision the Managed Default
+## Configure the Managed Default
 
-Prepare a root-owned Codex configuration that contains provider `pku`, the
-expected PKU endpoint, and its administrator-held token. Do not commit this
-file or expose its contents in logs:
+Create the fixed proxy upstream configuration as root. It has exactly two
+lines: the first line is the complete Responses endpoint, including
+`/responses`; the second line is the bearer token. Use HTTPS for any
+non-loopback endpoint. Do not commit this file or expose its contents in logs,
+Issues, or shell history.
 
-```toml
-[model_providers.pku]
-base_url = "https://chat.pku.edu.cn/deployer/coding_tatu/v1"
-experimental_bearer_token = "<administrator-held-token>"
+```text
+https://gateway.example.edu/v1/responses
+<administrator-held-token>
 ```
 
-The source must be a regular file owned by root and must not be readable by its
-group or other users:
+Create an empty file with the required ownership and mode, then edit it with
+`sudoedit` so the token is not passed as a command-line argument:
 
 ```bash
-sudo chown root:root /root/.codex/config.toml
-sudo chmod 600 /root/.codex/config.toml
-sudo cranesched-codex-provision \
-  --source-config /root/.codex/config.toml \
-  --verify-upstream
+sudo install -d -m 0755 -o root -g root /etc/codex
+sudo install -m 0600 -o root -g root /dev/null \
+  /etc/codex/proxy-upstream.conf
+sudoedit /etc/codex/proxy-upstream.conf
+sudo chown root:root /etc/codex/proxy-upstream.conf
+sudo chmod 0600 /etc/codex/proxy-upstream.conf
 ```
 
-The provisioner extracts only provider `pku`, validates its endpoint, rotates
-the root-only service credential atomically, enables the proxy, and sends one
-minimal real request. If validation fails, it restores the previous credential
-and service state.
+The wrapper rejects symbolic links, non-regular files, any owner other than
+root, and any mode other than `0600`. It requires exactly two newline-terminated
+lines, a complete `http` or `https` endpoint whose parsed path ends in
+`/responses` and has no fragment, and a non-empty token of at most 1016 ASCII
+letters, numbers, `-`, or `_`. An upstream query string is allowed.
 
-For an offline rollout, omit `--verify-upstream`, but run the verified command
-before declaring the node ready.
+Inspect only the metadata and endpoint before starting; do not print the second
+line:
+
+```bash
+sudo stat --format='%F %a %U:%G' /etc/codex/proxy-upstream.conf
+sudo sed -n '1p' /etc/codex/proxy-upstream.conf
+sudo systemctl enable --now cranesched-codex-proxy.service
+```
 
 ## Verify and use
 
@@ -116,7 +126,18 @@ curl --silent --output /dev/null --write-out '%{http_code}\n' \
   http://127.0.0.1:617/__cranesched_codex_ready
 ```
 
-After provisioning, ordinary users start Codex without setting a shared API
+After the local checks pass, send one minimal real request before declaring the
+node ready:
+
+```bash
+curl --fail --silent --show-error --output /dev/null \
+  --max-time 120 \
+  -H 'content-type: application/json' \
+  --data '{"model":"gpt-5.6-sol","input":"Reply exactly: OK","max_output_tokens":16,"stream":false,"store":false}' \
+  http://127.0.0.1:617/v1/responses
+```
+
+After configuration, ordinary users start Codex without setting a shared API
 key:
 
 ```bash
@@ -146,9 +167,12 @@ for installation:
 sudo dnf install ./cranesched-codex-*.el9.x86_64.rpm
 ```
 
-If the proxy is active and already has a credential, the RPM upgrade restarts
-it with the new package. Run `cranesched-codex-provision` again when rotating
-the administrator credential or when a real upstream verification is needed.
+The RPM does not restart the proxy automatically. Restart it after every
+upgrade, then repeat the listener, readiness, and real upstream checks:
+
+```bash
+sudo systemctl restart cranesched-codex-proxy.service
+```
 
 Keep the prior RPM available until the upgraded node passes the verification
 commands and a normal user can start Codex successfully.
@@ -177,11 +201,10 @@ proxy does not intercept traffic sent to a user-selected endpoint.
 
 ### The latest Release cannot be downloaded
 
-Confirm that GitHub authentication can read the private repository and that a
-Release exists:
+Confirm that a Release exists and that the node or download workstation can
+reach GitHub:
 
 ```bash
-gh auth status
 gh release view --repo Nativu5/CraneSched-Codex
 ```
 
@@ -190,26 +213,29 @@ shell wildcard select more than one package.
 
 ### DNF reports missing dependencies
 
-The target node or internal mirror must provide `bubblewrap`, `ripgrep`, and
-`python3-tomli` for EL9. Inspect enabled repositories before retrying:
+The target node or internal mirror must provide `bubblewrap` and `ripgrep` for
+EL9. Inspect enabled repositories before retrying:
 
 ```bash
 sudo dnf repolist
-sudo dnf install bubblewrap ripgrep python3-tomli
+sudo dnf install bubblewrap ripgrep
 ```
 
-### Provisioning rejects the source configuration
+### The wrapper rejects its configuration
 
-Check metadata without printing the file. It must be a root-owned regular file
-with no group or world access:
+Check metadata without printing the token. The file must be a root-owned
+regular file, not a symbolic link, with exact mode `0600`:
 
 ```bash
-sudo stat --format='%F %a %U:%G' /root/.codex/config.toml
+sudo test ! -L /etc/codex/proxy-upstream.conf
+sudo stat --format='%F %a %U:%G' /etc/codex/proxy-upstream.conf
+sudo sed -n '1p' /etc/codex/proxy-upstream.conf
 ```
 
-The file must contain `[model_providers.pku]`, the exact expected `base_url`,
-and a non-empty `experimental_bearer_token`. Do not paste the token into an
-Issue, terminal transcript, or support message.
+The first line must be the complete `http` or `https` Responses URL. The second
+line must be a non-empty token containing only ASCII letters, numbers, `-`, or
+`_`. Do not paste the token into an Issue, terminal transcript, or support
+message.
 
 ### The proxy does not start
 
@@ -222,9 +248,8 @@ sudo journalctl -u cranesched-codex-proxy.service -n 100 --no-pager
 sudo ss -ltnp '( sport = :617 )'
 ```
 
-The service requires systemd 247 or newer and expects port 617 to remain a
-privileged port. Provisioning reports an actionable error when either contract
-is not met.
+The service requires systemd 247 or newer. The wrapper reports configuration
+metadata and format errors to the journal without printing the token.
 
 ### Codex does not use the Managed Default
 
@@ -239,15 +264,38 @@ test ! -f ~/.codex/config.toml || \
 The effective provider should be `cluster_shared` when no user override is
 present. Never include credentials when sharing diagnostic output.
 
-### Local checks pass but real requests fail
+### Rotate the endpoint or token
 
-Re-run provisioning with the real upstream check. It sends one minimal request
-and restores the previous working state if verification fails:
+First create a temporary root-only backup, then edit the same file, restore its
+required metadata, restart the proxy, and repeat the verification commands.
+This manual workflow does not perform automatic rollback.
 
 ```bash
-sudo cranesched-codex-provision \
-  --source-config /root/.codex/config.toml \
-  --verify-upstream
+backup_path="$(sudo mktemp /etc/codex/.proxy-upstream.conf.XXXXXX)"
+sudo install -m 0600 -o root -g root \
+  /etc/codex/proxy-upstream.conf "${backup_path}"
+sudoedit /etc/codex/proxy-upstream.conf
+sudo chown root:root /etc/codex/proxy-upstream.conf
+sudo chmod 0600 /etc/codex/proxy-upstream.conf
+sudo systemctl restart cranesched-codex-proxy.service
+```
+
+After the listener, readiness, and real upstream checks pass, remove the backup:
+
+```bash
+sudo rm -f -- "${backup_path}"
+unset backup_path
+```
+
+If verification fails, restore the backup and restart the service before
+investigating the rejected values:
+
+```bash
+sudo install -m 0600 -o root -g root \
+  "${backup_path}" /etc/codex/proxy-upstream.conf
+sudo systemctl restart cranesched-codex-proxy.service
+sudo rm -f -- "${backup_path}"
+unset backup_path
 ```
 
 ## Remove
@@ -258,8 +306,8 @@ An administrator who has only the RPM removes it through DNF:
 sudo dnf remove cranesched-codex
 ```
 
-Removal stops and disables the unit and removes the generated credential,
-Codex binary, system config, and Admin Skills. A locally modified
+Removal stops and disables the unit and removes the manually created wrapper
+configuration, Codex binary, system config, and Admin Skills. A locally modified
 `/etc/codex/config.toml` may remain as an RPM `.rpmsave` file.
 
 ## Build from source
@@ -310,7 +358,7 @@ SYSTEMD_RUNTIME_TEST=1 proxy/tests/test.sh
 sudo tests/test-installed-node.sh
 ```
 
-Normal CI uses fixture credentials and a mock upstream. It never receives a
+Normal CI uses a fixture configuration and mock upstream. It never receives a
 real administrator key. A real request is an explicit, administrator-controlled
 deployment test only.
 

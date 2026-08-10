@@ -29,20 +29,20 @@ trap cleanup EXIT
 [[ "$(rpm -qp --queryformat '%{ARCH}' "${rpm_path}")" == "x86_64" ]]
 rpm -K --nosignature "${rpm_path}" >/dev/null
 package_requires="$(rpm -qp --requires "${rpm_path}")"
-for dependency in bubblewrap python3-tomli ripgrep; do
+for dependency in bubblewrap ripgrep; do
     rg -Fxq -- "${dependency}" <<<"${package_requires}"
 done
+! rg -Fxq -- "python3-tomli" <<<"${package_requires}"
+! rg -Fxq -- "bash" <<<"${package_requires}"
 
 required_paths=(
     /etc/codex/config.toml
-    /etc/codex/proxy-api-key
+    /etc/codex/proxy-upstream.conf
     /etc/codex/skills/cranesched-skill/SKILL.md
     /usr/bin/codex
     /usr/lib/systemd/system/cranesched-codex-proxy.service
     /usr/libexec/cranesched-codex/codex
     /usr/libexec/cranesched-codex/cranesched-codex-proxy
-    /usr/libexec/cranesched-codex/extract_provider_credential.py
-    /usr/sbin/cranesched-codex-provision
     /usr/share/doc/cranesched-codex/PROVENANCE
     /usr/share/licenses/cranesched-codex/CODEX-LICENSE
     /usr/share/licenses/cranesched-codex/CODEX-NOTICE
@@ -57,10 +57,11 @@ while IFS= read -r -d '' source_path; do
 done < <(find "${repo_dir}/skills" -mindepth 1 -type f -print0)
 [[ "$(rpm -qp --queryformat \
     '[%{FILENAMES}\t%{FILEFLAGS:fflags}\n]' "${rpm_path}" | \
-    awk -F '\t' '$1 == "/etc/codex/proxy-api-key" { print $2 }')" == *g* ]]
+    awk -F '\t' '$1 == "/etc/codex/proxy-upstream.conf" { print $2 }')" == *g* ]]
 
 payload_paths="$(rpm2cpio "${rpm_path}" | cpio -it --quiet)"
-! rg -q 'proxy-api-key' <<<"${payload_paths}"
+! rg -q 'proxy-upstream\.conf|cranesched-codex-provision|extract_provider_credential' \
+    <<<"${payload_paths}"
 
 extract_root="${test_root}/extract"
 install -d -m 0755 -- "${extract_root}"
@@ -74,10 +75,11 @@ install -d -m 0755 -- "${extract_root}"
 [[ "$("${extract_root}/usr/bin/codex" --version)" == "codex-cli ${codex_version}" ]]
 diff --recursive --no-dereference --brief \
     "${repo_dir}/skills" "${extract_root}/etc/codex/skills"
-"${extract_root}/usr/sbin/cranesched-codex-provision" --help >/dev/null
 rg -Fq 'sudo dnf install ./cranesched-codex-' \
     "${extract_root}/usr/share/doc/cranesched-codex/README.md"
 rg -Fq 'sudo dnf remove cranesched-codex' \
+    "${extract_root}/usr/share/doc/cranesched-codex/README.md"
+rg -Fq 'sudoedit /etc/codex/proxy-upstream.conf' \
     "${extract_root}/usr/share/doc/cranesched-codex/README.md"
 systemd-analyze --recursive-errors=no --root="${extract_root}" \
     verify cranesched-codex-proxy.service
@@ -100,9 +102,12 @@ rpm --root "${install_root}" --initdb
 rpm --root "${install_root}" -ivh --nodeps --noscripts "${rpm_path}" >/dev/null
 diff --recursive --no-dereference --brief \
     "${repo_dir}/skills" "${install_root}/etc/codex/skills"
-install -m 0400 /dev/null "${install_root}/etc/codex/proxy-api-key"
+printf '%s\n%s\n' \
+    'https://gateway.example.invalid/v1/responses' 'fixture-secret' \
+    >"${install_root}/etc/codex/proxy-upstream.conf"
+chmod 0600 "${install_root}/etc/codex/proxy-upstream.conf"
 rpm --root "${install_root}" -e --nodeps --noscripts cranesched-codex
-[[ ! -e "${install_root}/etc/codex/proxy-api-key" ]]
+[[ ! -e "${install_root}/etc/codex/proxy-upstream.conf" ]]
 [[ ! -e "${install_root}/etc/codex/skills" ]]
 [[ ! -e "${install_root}/usr/bin/codex" ]]
 [[ ! -e "${install_root}/usr/libexec/cranesched-codex/codex" ]]

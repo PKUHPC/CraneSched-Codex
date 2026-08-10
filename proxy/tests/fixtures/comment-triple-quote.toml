@@ -1,7 +1,0 @@
-# A harmless documentation marker: """
-model = "gpt-5.6-sol"
-model_provider = "pku"
-
-[model_providers.pku]
-base_url = "https://chat.pku.edu.cn/deployer/coding_tatu/v1"
-experimental_bearer_token = "fixture-secret"

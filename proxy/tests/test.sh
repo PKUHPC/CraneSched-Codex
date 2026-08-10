@@ -12,7 +12,7 @@ runtime_unit=""
 runtime_unit_file=""
 runtime_bin=""
 runtime_wrapper=""
-runtime_key=""
+runtime_config=""
 
 cleanup() {
     if [[ -n "${runtime_unit}" ]]; then
@@ -29,7 +29,7 @@ cleanup() {
     fi
     [[ -z "${runtime_bin}" ]] || rm -f -- "${runtime_bin}"
     [[ -z "${runtime_wrapper}" ]] || rm -f -- "${runtime_wrapper}"
-    [[ -z "${runtime_key}" ]] || rm -f -- "${runtime_key}"
+    [[ -z "${runtime_config}" ]] || rm -f -- "${runtime_config}"
     rm -rf -- "${temp_dir}"
 }
 trap cleanup EXIT
@@ -37,7 +37,6 @@ trap cleanup EXIT
 python3 - \
     "${repo_dir}/config.toml" \
     "${proxy_dir}/cranesched-codex-proxy.service" \
-    "${proxy_dir}/cranesched-codex-proxy" \
     "${repo_dir}/cranesched-codex.sh" <<'PY'
 import pathlib
 import sys
@@ -47,14 +46,14 @@ try:
 except ModuleNotFoundError:
     import tomli as tomllib
 
-config_path, unit_path, wrapper_path, manager_path = map(pathlib.Path, sys.argv[1:])
+config_path, unit_path, manager_path = map(pathlib.Path, sys.argv[1:])
 config_text = config_path.read_text(encoding="utf-8")
 config = tomllib.loads(config_text)
 assert config["model"] == "gpt-5.6-sol"
 assert config["model_provider"] == "cluster_shared"
 provider = config["model_providers"]["cluster_shared"]
 assert provider == {
-    "name": "PKU CraneSched-Codex Proxy",
+    "name": "CraneSched-Codex Proxy",
     "base_url": "http://127.0.0.1:617/v1",
     "wire_api": "responses",
     "requires_openai_auth": False,
@@ -66,11 +65,12 @@ for forbidden in ("bearer", "api_key", "api-key", "experimental_bearer_token"):
 unit = unit_path.read_text(encoding="utf-8")
 assert "Description=CraneSched-Codex Responses API proxy" in unit
 assert "ExecStart=/usr/libexec/cranesched-codex/cranesched-codex-proxy --port 617" in unit
-assert "--upstream-url=https://chat.pku.edu.cn/deployer/coding_tatu/v1/responses" in unit
-assert "LoadCredential=api-key:/etc/codex/proxy-api-key" in unit
+assert "--upstream-url" not in unit
+assert "LoadCredential=" not in unit
+assert "DynamicUser=" not in unit
 assert "SELinuxContext=system_u:system_r:unconfined_service_t:s0" in unit
 assert "CapabilityBoundingSet=CAP_NET_BIND_SERVICE" in unit
-assert "AmbientCapabilities=CAP_NET_BIND_SERVICE" in unit
+assert "AmbientCapabilities=" not in unit
 assert "StandardInput=" not in unit
 for resource_limit in (
     "LimitNOFILE=8192",
@@ -81,10 +81,6 @@ for resource_limit in (
 ):
     assert resource_limit in unit
 
-wrapper = wrapper_path.read_text(encoding="utf-8")
-assert '${CREDENTIALS_DIRECTORY}/api-key' in wrapper
-assert 'exec /usr/libexec/cranesched-codex/codex responses-api-proxy "$@" <' in wrapper
-
 manager = manager_path.read_text(encoding="utf-8")
 assert 'dnf --assumeyes install "${rpm_path}"' in manager
 assert 'dnf --assumeyes remove "${package_name}"' in manager
@@ -92,52 +88,115 @@ assert "rpm -Uvh" not in manager
 assert 'rpm -e "${package_name}"' not in manager
 PY
 
-extractor="${proxy_dir}/extract_provider_credential.py"
-install -m 0600 -- "${tests_dir}/fixtures/source-config.toml" \
-    "${temp_dir}/source-config.toml"
-python3 "${extractor}" \
-    --source "${temp_dir}/source-config.toml" \
-    --provider pku \
-    --expected-base-url https://chat.pku.edu.cn/deployer/coding_tatu/v1 \
-    --output "${temp_dir}/proxy-api-key" >"${temp_dir}/extract.log"
-[[ ! -s "${temp_dir}/extract.log" ]]
-[[ "$(stat -c '%a' "${temp_dir}/proxy-api-key")" == "400" ]]
-[[ "$(<"${temp_dir}/proxy-api-key")" == "fixture-secret" ]]
+wrapper_under_test="${temp_dir}/cranesched-codex-proxy"
+proxy_config="${temp_dir}/proxy-upstream.conf"
+proxy_config_target="${temp_dir}/proxy-upstream-target.conf"
+fake_codex="${temp_dir}/fake-codex"
+fake_args="${temp_dir}/fake-args"
+fake_env="${temp_dir}/fake-env"
+fake_stdin="${temp_dir}/fake-stdin"
+sed \
+    -e "s#/etc/codex/proxy-upstream.conf#${proxy_config}#" \
+    -e "s#/usr/libexec/cranesched-codex/codex#${fake_codex}#" \
+    "${proxy_dir}/cranesched-codex-proxy" >"${wrapper_under_test}"
+chmod 0755 "${wrapper_under_test}"
+printf '%s\n' \
+    '#!/bin/sh' \
+    'set -eu' \
+    'printf "%s\n" "$@" >"${WRAPPER_TEST_ARGS:?}"' \
+    'env >"${WRAPPER_TEST_ENV:?}"' \
+    'cat >"${WRAPPER_TEST_STDIN:?}"' \
+    >"${fake_codex}"
+chmod 0755 "${fake_codex}"
 
-install -m 0600 -- "${tests_dir}/fixtures/source-config.toml" \
-    "${temp_dir}/wrong-endpoint.toml"
-sed -i 's#https://chat.pku.edu.cn/deployer/coding_tatu/v1#https://wrong.invalid/v1#' \
-    "${temp_dir}/wrong-endpoint.toml"
-if python3 "${extractor}" \
-    --source "${temp_dir}/wrong-endpoint.toml" \
-    --provider pku \
-    --expected-base-url https://chat.pku.edu.cn/deployer/coding_tatu/v1 \
-    --output "${temp_dir}/wrong-key" >"${temp_dir}/wrong.log" 2>&1; then
-    printf 'Credential extractor accepted a mismatched endpoint\n' >&2
+if "${wrapper_under_test}" --port 617 >"${temp_dir}/missing-config.log" 2>&1; then
+    printf 'Wrapper accepted a missing configuration\n' >&2
     exit 1
 fi
-[[ ! -e "${temp_dir}/wrong-key" ]]
+rg -Fq 'configuration is unavailable' "${temp_dir}/missing-config.log"
 
-install -m 0600 -- "${tests_dir}/fixtures/multiline-decoy.toml" \
-    "${temp_dir}/multiline.toml"
-if python3 "${extractor}" \
-    --source "${temp_dir}/multiline.toml" \
-    --provider pku \
-    --expected-base-url https://chat.pku.edu.cn/deployer/coding_tatu/v1 \
-    --output "${temp_dir}/multiline-key" >"${temp_dir}/multiline.log" 2>&1; then
-    printf 'Credential extractor accepted a multiline TOML decoy\n' >&2
+printf '%s\n%s\n' \
+    'https://gateway.example.invalid/v1/responses' 'fixture-secret' \
+    >"${proxy_config}"
+chmod 0644 "${proxy_config}"
+if "${wrapper_under_test}" --port 617 >"${temp_dir}/wrong-mode.log" 2>&1; then
+    printf 'Wrapper accepted an insecure configuration mode\n' >&2
     exit 1
 fi
-[[ ! -e "${temp_dir}/multiline-key" ]]
+rg -Fq 'root:root with mode 0600' "${temp_dir}/wrong-mode.log"
 
-install -m 0600 -- "${tests_dir}/fixtures/comment-triple-quote.toml" \
-    "${temp_dir}/comment.toml"
-python3 "${extractor}" \
-    --source "${temp_dir}/comment.toml" \
-    --provider pku \
-    --expected-base-url https://chat.pku.edu.cn/deployer/coding_tatu/v1 \
-    --output "${temp_dir}/comment-key"
-[[ "$(<"${temp_dir}/comment-key")" == "fixture-secret" ]]
+mv -- "${proxy_config}" "${proxy_config_target}"
+chmod 0600 "${proxy_config_target}"
+ln -s -- "${proxy_config_target}" "${proxy_config}"
+if "${wrapper_under_test}" --port 617 >"${temp_dir}/symlink.log" 2>&1; then
+    printf 'Wrapper accepted a symbolic-link configuration\n' >&2
+    exit 1
+fi
+rg -Fq 'must not be a symbolic link' "${temp_dir}/symlink.log"
+
+unlink -- "${proxy_config}"
+install -m 0600 -- "${proxy_config_target}" "${proxy_config}"
+
+assert_wrapper_rejects() {
+    local description="$1"
+    local expected_error="$2"
+    shift 2
+    printf '%s\n' "$@" >"${proxy_config}"
+    chmod 0600 "${proxy_config}"
+    if "${wrapper_under_test}" --port 617 >"${temp_dir}/malformed.log" 2>&1; then
+        printf 'Wrapper accepted %s\n' "${description}" >&2
+        exit 1
+    fi
+    rg -Fq -- "${expected_error}" "${temp_dir}/malformed.log"
+}
+
+assert_wrapper_rejects \
+    'a non-Responses upstream path' 'path must end in /responses' \
+    'https://gateway.example.invalid/v1/models' 'fixture-secret'
+assert_wrapper_rejects \
+    'a Responses suffix only in the query' 'invalid authority' \
+    'https://gateway.example.invalid?redirect=/responses' 'fixture-secret'
+assert_wrapper_rejects \
+    'a URL fragment' 'must not include a fragment' \
+    'https://gateway.example.invalid/v1/responses#fragment' 'fixture-secret'
+assert_wrapper_rejects \
+    'an empty token' 'empty bearer token' \
+    'https://gateway.example.invalid/v1/responses' ''
+assert_wrapper_rejects \
+    'an invalid token' 'invalid characters' \
+    'https://gateway.example.invalid/v1/responses' 'fixture secret'
+oversized_token="$(printf '%1017s' '' | tr ' ' a)"
+assert_wrapper_rejects \
+    'an oversized token' 'exceeds 1016 characters' \
+    'https://gateway.example.invalid/v1/responses' "${oversized_token}"
+unset oversized_token
+assert_wrapper_rejects \
+    'a third line' 'exactly two lines' \
+    'https://gateway.example.invalid/v1/responses' 'fixture-secret' 'unexpected'
+
+printf '%s\n%s' \
+    'https://gateway.example.invalid/v1/responses' 'fixture-secret' \
+    >"${proxy_config}"
+chmod 0600 "${proxy_config}"
+if "${wrapper_under_test}" --port 617 >"${temp_dir}/unterminated.log" 2>&1; then
+    printf 'Wrapper accepted an unterminated token line\n' >&2
+    exit 1
+fi
+rg -Fq 'no terminated bearer token line' "${temp_dir}/unterminated.log"
+
+printf '%s\n%s\n' \
+    'https://gateway.example.invalid/v1/responses?api-version=fixture' \
+    'fixture-secret' \
+    >"${proxy_config}"
+chmod 0600 "${proxy_config}"
+WRAPPER_TEST_ARGS="${fake_args}" \
+WRAPPER_TEST_ENV="${fake_env}" \
+WRAPPER_TEST_STDIN="${fake_stdin}" \
+    "${wrapper_under_test}" --port 617
+[[ "$(<"${fake_args}")" == $'responses-api-proxy\n--port\n617\n--upstream-url\nhttps://gateway.example.invalid/v1/responses?api-version=fixture' ]]
+[[ "$(<"${fake_stdin}")" == "fixture-secret" ]]
+! rg -Fq 'fixture-secret' "${fake_args}"
+! rg -Fq 'fixture-secret' "${fake_env}"
 
 stage="${temp_dir}/stage"
 install -d -m 0755 -- \
@@ -237,16 +296,18 @@ if [[ "${SYSTEMD_RUNTIME_TEST:-0}" == "1" ]]; then
     runtime_unit_file="/run/systemd/system/${runtime_unit}"
     runtime_bin="/usr/libexec/cranesched-codex-test-${BASHPID}"
     runtime_wrapper="/usr/libexec/cranesched-codex-proxy-test-${BASHPID}"
-    runtime_key="/run/cranesched-codex-key-test-${BASHPID}"
+    runtime_config="/run/cranesched-codex-wrapper-test-${BASHPID}"
     install -m 0755 -- "${codex_bin}" "${runtime_bin}"
-    sed "s#/usr/libexec/cranesched-codex/codex#${runtime_bin}#" \
+    sed \
+        -e "s#/usr/libexec/cranesched-codex/codex#${runtime_bin}#" \
+        -e "s#/etc/codex/proxy-upstream.conf#${runtime_config}#" \
         "${proxy_dir}/cranesched-codex-proxy" >"${runtime_wrapper}"
     chmod 0755 "${runtime_wrapper}"
-    install -m 0400 -- "${temp_dir}/proxy-api-key" "${runtime_key}"
+    printf 'http://127.0.0.1:%s/example/v1/responses\nfixture-secret\n' \
+        "${upstream_port}" >"${runtime_config}"
+    chmod 0600 "${runtime_config}"
     sed \
         -e "s#/usr/libexec/cranesched-codex/cranesched-codex-proxy#${runtime_wrapper}#" \
-        -e "s#https://chat.pku.edu.cn/deployer/coding_tatu/v1/responses#http://127.0.0.1:${upstream_port}/deployer/coding_tatu/v1/responses#" \
-        -e "s#LoadCredential=api-key:/etc/codex/proxy-api-key#LoadCredential=api-key:${runtime_key}#" \
         "${proxy_dir}/cranesched-codex-proxy.service" >"${runtime_unit_file}"
     systemctl daemon-reload
     systemctl start "${runtime_unit}"
@@ -268,7 +329,7 @@ if [[ "${SYSTEMD_RUNTIME_TEST:-0}" == "1" ]]; then
         exit 1
     }
     runtime_pid="$(systemctl show --property=MainPID --value "${runtime_unit}")"
-    [[ "$(awk '/^Uid:/ { print $2 }' "/proc/${runtime_pid}/status")" != "0" ]]
+    [[ "$(awk '/^Uid:/ { print $2 }' "/proc/${runtime_pid}/status")" == "0" ]]
     if [[ "$(getenforce 2>/dev/null || true)" == "Enforcing" ]]; then
         runtime_context="$(tr -d '\0' <"/proc/${runtime_pid}/attr/current")"
         [[ "${runtime_context}" == *":unconfined_service_t:"* ]]
@@ -276,18 +337,18 @@ if [[ "${SYSTEMD_RUNTIME_TEST:-0}" == "1" ]]; then
     systemctl stop "${runtime_unit}"
     systemctl reset-failed "${runtime_unit}" 2>/dev/null || true
     runtime_unit=""
-    rm -f -- "${runtime_unit_file}" "${runtime_bin}" "${runtime_wrapper}" "${runtime_key}"
+    rm -f -- "${runtime_unit_file}" "${runtime_bin}" "${runtime_wrapper}" "${runtime_config}"
     runtime_unit_file=""
     runtime_bin=""
     runtime_wrapper=""
-    runtime_key=""
+    runtime_config=""
     systemctl daemon-reload
 fi
 
 printf '%s\n' 'fixture-secret' | "${codex_bin}" responses-api-proxy \
     --port 0 \
     --server-info "${temp_dir}/proxy-info.json" \
-    --upstream-url "http://127.0.0.1:${upstream_port}/deployer/coding_tatu/v1/responses" \
+    --upstream-url "http://127.0.0.1:${upstream_port}/example/v1/responses" \
     >"${temp_dir}/proxy.log" 2>&1 &
 proxy_pid=$!
 for _ in {1..100}; do
@@ -315,7 +376,7 @@ import pathlib
 import sys
 
 capture = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-assert capture["path"] == "/deployer/coding_tatu/v1/responses"
+assert capture["path"] == "/example/v1/responses"
 assert capture["authorization"] == "Bearer fixture-secret"
 assert capture["host"] == f"127.0.0.1:{sys.argv[2]}"
 assert json.loads(capture["body"]) == {"model": "fixture", "input": "test"}

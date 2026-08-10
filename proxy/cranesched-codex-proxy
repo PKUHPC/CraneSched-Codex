@@ -1,13 +1,69 @@
 #!/bin/sh
 set -eu
 
-: "${CREDENTIALS_DIRECTORY:?systemd credential directory is unavailable}"
-credential_path="${CREDENTIALS_DIRECTORY}/api-key"
-if [ ! -f "${credential_path}" ] || [ ! -r "${credential_path}" ]; then
-    printf '%s\n' 'CraneSched-Codex API credential is unavailable' >&2
-    exit 1
-fi
+readonly config_path="/etc/codex/proxy-upstream.conf"
 
-# The shell opens the systemd credential directly as stdin, then disappears.
-# It never reads the credential into a variable or exposes it in argv/env.
-exec /usr/libexec/cranesched-codex/codex responses-api-proxy "$@" <"${credential_path}"
+die() {
+    printf 'cranesched-codex-proxy: %s\n' "$*" >&2
+    exit 1
+}
+
+[ "$(id -u)" -eq 0 ] || die "must run as root"
+[ ! -L "${config_path}" ] || die "configuration must not be a symbolic link"
+[ -f "${config_path}" ] || die "configuration is unavailable: ${config_path}"
+
+config_metadata="$(stat -c '%a %u %g' -- "${config_path}")" ||
+    die "cannot inspect configuration: ${config_path}"
+[ "${config_metadata}" = "600 0 0" ] ||
+    die "configuration must be owned by root:root with mode 0600"
+
+exec 3<"${config_path}" || die "cannot open configuration: ${config_path}"
+exec 4<"${config_path}" || die "cannot validate configuration: ${config_path}"
+IFS= read -r upstream_url <&4 || die "configuration has no upstream URL line"
+[ -n "${upstream_url}" ] || die "configuration has an empty upstream URL"
+case "${upstream_url}" in
+    http://*) upstream_target="${upstream_url#http://}" ;;
+    https://*) upstream_target="${upstream_url#https://}" ;;
+    *) die "upstream URL must use http or https" ;;
+esac
+case "${upstream_target}" in
+    */*) ;;
+    *) die "upstream URL must include a host and Responses path" ;;
+esac
+upstream_authority="${upstream_target%%/*}"
+path_and_query="/${upstream_target#*/}"
+case "${upstream_authority}" in
+    ''|*'?'*|*'#'*|*'@'*) die "upstream URL has an invalid authority" ;;
+esac
+case "${path_and_query}" in
+    *'#'*) die "upstream URL must not include a fragment" ;;
+esac
+upstream_path="${path_and_query%%\?*}"
+case "${upstream_path}" in
+    */responses) ;;
+    *) die "upstream URL path must end in /responses" ;;
+esac
+
+IFS= read -r token <&4 || die "configuration has no terminated bearer token line"
+case "${token}" in
+    '') die "configuration has an empty bearer token" ;;
+    *[!A-Za-z0-9_-]*) die "bearer token has invalid characters" ;;
+esac
+[ "${#token}" -le 1016 ] || die "bearer token exceeds 1016 characters"
+
+trailing_content=""
+if IFS= read -r trailing_content <&4 || [ -n "${trailing_content}" ]; then
+    die "configuration must contain exactly two lines"
+fi
+exec 4<&-
+
+# Keep the unvalidated descriptor at the first line while descriptor 4 checks
+# the same root-only file. The proxy then reads the token directly from
+# descriptor 3, so it never enters argv or the process environment.
+IFS= read -r upstream_url_from_stdin <&3 || die "cannot position configuration input"
+[ "${upstream_url_from_stdin}" = "${upstream_url}" ] ||
+    die "configuration changed while it was being validated"
+unset token trailing_content upstream_url_from_stdin \
+    upstream_target upstream_authority path_and_query upstream_path
+exec /usr/libexec/cranesched-codex/codex responses-api-proxy \
+    "$@" --upstream-url "${upstream_url}" <&3

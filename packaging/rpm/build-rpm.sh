@@ -78,12 +78,6 @@ install -m 0644 -- \
 install -m 0755 -- \
     "${repo_dir}/proxy/cranesched-codex-proxy" \
     "${build_root}/SOURCES/cranesched-codex-proxy"
-install -m 0755 -- \
-    "${repo_dir}/proxy/extract_provider_credential.py" \
-    "${build_root}/SOURCES/extract_provider_credential.py"
-install -m 0755 -- \
-    "${script_dir}/cranesched-codex-provision" \
-    "${build_root}/SOURCES/cranesched-codex-provision"
 install -m 0644 -- "${repo_dir}/submodules/codex/LICENSE" "${build_root}/SOURCES/LICENSE"
 install -m 0644 -- "${repo_dir}/submodules/codex/NOTICE" "${build_root}/SOURCES/NOTICE"
 install -m 0644 -- "${repo_dir}/README.md" "${build_root}/SOURCES/README.md"

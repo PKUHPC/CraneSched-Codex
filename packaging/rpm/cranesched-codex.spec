@@ -13,21 +13,16 @@ Source0:        codex
 Source1:        config.toml
 Source2:        cranesched-codex-proxy.service
 Source3:        cranesched-codex-proxy
-Source4:        extract_provider_credential.py
-Source5:        cranesched-codex-provision
-Source6:        LICENSE
-Source7:        NOTICE
-Source8:        README.md
-Source9:        PROVENANCE
-Source10:       skills
+Source4:        LICENSE
+Source5:        NOTICE
+Source6:        README.md
+Source7:        PROVENANCE
+Source8:        skills
 
 ExclusiveArch:  x86_64
-Requires:       bash
 Requires:       bubblewrap
 Requires:       coreutils
 Requires:       procps-ng
-Requires:       python3 >= 3.9
-Requires:       python3-tomli
 Requires:       ripgrep
 Requires:       systemd >= 247
 Requires(post): systemd
@@ -37,8 +32,8 @@ Requires(postun): systemd
 %description
 Installs a pinned native Codex binary, a hardened loopback Responses API proxy,
 a low-priority /etc/codex/config.toml default, and administrator Skills. The
-upstream bearer token is not part of the RPM and must be provisioned after
-installation.
+upstream endpoint and bearer token are not part of the RPM and must be
+configured manually after installation.
 
 %prep
 
@@ -50,29 +45,22 @@ install -d -m 0755 %{buildroot}/etc/codex/skills
 install -d -m 0755 %{buildroot}/usr/bin
 install -d -m 0755 %{buildroot}/usr/libexec/cranesched-codex
 install -d -m 0755 %{buildroot}/usr/lib/systemd/system
-install -d -m 0755 %{buildroot}/usr/sbin
 install -d -m 0755 %{buildroot}/usr/share/doc/%{name}
 install -d -m 0755 %{buildroot}/usr/share/licenses/%{name}
 
 install -m 0644 %{SOURCE1} %{buildroot}/etc/codex/config.toml
-cp -a %{SOURCE10}/. %{buildroot}/etc/codex/skills/
+cp -a %{SOURCE8}/. %{buildroot}/etc/codex/skills/
 install -m 0755 %{SOURCE0} %{buildroot}/usr/libexec/cranesched-codex/codex
 ln -s ../libexec/cranesched-codex/codex %{buildroot}/usr/bin/codex
 install -m 0755 %{SOURCE3} %{buildroot}/usr/libexec/cranesched-codex/cranesched-codex-proxy
-install -m 0755 %{SOURCE4} %{buildroot}/usr/libexec/cranesched-codex/extract_provider_credential.py
 install -m 0644 %{SOURCE2} %{buildroot}/usr/lib/systemd/system/cranesched-codex-proxy.service
-install -m 0755 %{SOURCE5} %{buildroot}/usr/sbin/cranesched-codex-provision
-install -m 0644 %{SOURCE8} %{buildroot}/usr/share/doc/%{name}/README.md
-install -m 0644 %{SOURCE9} %{buildroot}/usr/share/doc/%{name}/PROVENANCE
-install -m 0644 %{SOURCE6} %{buildroot}/usr/share/licenses/%{name}/CODEX-LICENSE
-install -m 0644 %{SOURCE7} %{buildroot}/usr/share/licenses/%{name}/CODEX-NOTICE
+install -m 0644 %{SOURCE6} %{buildroot}/usr/share/doc/%{name}/README.md
+install -m 0644 %{SOURCE7} %{buildroot}/usr/share/doc/%{name}/PROVENANCE
+install -m 0644 %{SOURCE4} %{buildroot}/usr/share/licenses/%{name}/CODEX-LICENSE
+install -m 0644 %{SOURCE5} %{buildroot}/usr/share/licenses/%{name}/CODEX-NOTICE
 
 %post
 systemctl daemon-reload >/dev/null 2>&1 || :
-if [ "$1" -gt 1 ] && [ -s /etc/codex/proxy-api-key ] && \
-        systemctl is-active --quiet cranesched-codex-proxy.service; then
-    systemctl restart cranesched-codex-proxy.service >/dev/null 2>&1 || :
-fi
 
 %preun
 if [ "$1" -eq 0 ]; then
@@ -89,16 +77,14 @@ fi
 %defattr(-,root,root,-)
 %dir %attr(0755,root,root) /etc/codex
 %config(noreplace) %attr(0644,root,root) /etc/codex/config.toml
-%ghost %attr(0400,root,root) /etc/codex/proxy-api-key
+%ghost %attr(0600,root,root) /etc/codex/proxy-upstream.conf
 %dir %attr(0755,root,root) /etc/codex/skills
 /etc/codex/skills/*
 /usr/bin/codex
 %dir %attr(0755,root,root) /usr/libexec/cranesched-codex
 %attr(0755,root,root) /usr/libexec/cranesched-codex/codex
 %attr(0755,root,root) /usr/libexec/cranesched-codex/cranesched-codex-proxy
-%attr(0755,root,root) /usr/libexec/cranesched-codex/extract_provider_credential.py
 %attr(0644,root,root) /usr/lib/systemd/system/cranesched-codex-proxy.service
-%attr(0755,root,root) /usr/sbin/cranesched-codex-provision
 %doc /usr/share/doc/%{name}/README.md
 %doc /usr/share/doc/%{name}/PROVENANCE
 %license /usr/share/licenses/%{name}/CODEX-LICENSE

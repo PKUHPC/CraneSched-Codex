@@ -34,11 +34,16 @@ rpm -q cranesched-codex >/dev/null
 [[ "$(/usr/bin/codex --version)" == "codex-cli ${codex_version}" ]]
 [[ -f /etc/codex/config.toml ]]
 [[ -f /etc/codex/skills/cranesched-skill/SKILL.md ]]
-[[ ! -e /etc/codex/proxy-api-key ]]
+[[ ! -e /etc/codex/proxy-upstream.conf ]]
+printf '%s\n%s\n' \
+    'https://gateway.example.invalid/v1/responses' 'fixture-secret' \
+    > /etc/codex/proxy-upstream.conf
+chmod 0600 /etc/codex/proxy-upstream.conf
 dnf --assumeyes remove cranesched-codex
 ! rpm -q cranesched-codex >/dev/null 2>&1
 [[ ! -e /usr/bin/codex ]]
 [[ ! -e /etc/codex/skills ]]
+[[ ! -e /etc/codex/proxy-upstream.conf ]]
 trap - EXIT
 
 printf 'CraneSched-Codex DNF transaction test passed.\n'

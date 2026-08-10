@@ -15,21 +15,23 @@ and reproduction steps with credentials and user data removed.
 If the shared upstream Key may have been exposed:
 
 1. Revoke or rotate it at the upstream provider.
-2. Update the root-readable source configuration.
-3. Run `cranesched-codex-provision` on every affected node.
-4. Verify the real upstream on each affected node.
+2. Edit `/etc/codex/proxy-upstream.conf` on every affected node with `sudoedit`.
+3. Restore ownership `root:root` and mode `0600`.
+4. Restart `cranesched-codex-proxy.service` and verify the real upstream.
 5. Inspect provider and host audit records for unauthorized use.
 
-Changing only `/etc/codex/config.toml` does not rotate the credential.
+Changing `/etc/codex/config.toml` does not rotate the shared credential.
 
 ## Trust model
 
-The root-owned credential is concealed from ordinary users through systemd
-credential loading and stdin. The loopback proxy is intentionally shared and
-does not authenticate users, apply per-user quotas, or provide accounting.
-Users may replace the Managed Default with BYOK.
+The root-owned proxy upstream configuration is concealed from ordinary users
+by mode `0600`. The root-running wrapper passes the token to the proxy through
+stdin; the endpoint, but not the token, appears in the proxy command line. The
+loopback proxy is intentionally shared and does not authenticate users, apply
+per-user quotas, or provide accounting. Users may replace the Managed Default
+with BYOK.
 
-Treat RPM publication, system configuration, provisioner source configuration,
-write-scoped workflow tokens, and `main` branch protection as privileged
-surfaces. Normal CI uses fixture credentials and a mock upstream; real Keys are
-not available to pull-request or fork-triggered workflows.
+Treat RPM publication, `/etc/codex/proxy-upstream.conf`, write-scoped workflow
+tokens, and `main` branch protection as privileged surfaces. Normal CI uses a
+fixture configuration and a mock upstream; real Keys are not available to
+pull-request or fork-triggered workflows.

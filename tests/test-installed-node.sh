@@ -8,38 +8,56 @@ set -euo pipefail
 
 package_name="cranesched-codex"
 service_name="cranesched-codex-proxy.service"
-secret_path="/etc/codex/proxy-api-key"
+proxy_config="/etc/codex/proxy-upstream.conf"
 
 rpm -q "${package_name}" >/dev/null
 [[ "$(/usr/bin/codex --version)" == \
     "codex-cli $(rpm -q --queryformat '%{VERSION}' "${package_name}")" ]]
 systemctl is-active --quiet "${service_name}"
 systemctl is-enabled --quiet "${service_name}"
-[[ "$(stat -c '%a %U:%G' "${secret_path}")" == "400 root:root" ]]
-runuser -u nobody -- test ! -r "${secret_path}"
+[[ ! -L "${proxy_config}" ]]
+[[ "$(stat -c '%a %U:%G' "${proxy_config}")" == "600 root:root" ]]
+runuser -u nobody -- test ! -r "${proxy_config}"
 
-listeners="$(ss -ltnH '( sport = :617 )')"
+# Type=simple becomes active before the Proxy finishes binding its listener.
+listeners=""
+for _ in {1..100}; do
+    listeners="$(ss -ltnH '( sport = :617 )')"
+    if rg -q '127\.0\.0\.1:617' <<<"${listeners}"; then
+        break
+    fi
+    sleep 0.1
+done
+if ! rg -q '127\.0\.0\.1:617' <<<"${listeners}"; then
+    systemctl status "${service_name}" --no-pager >&2 || true
+    journalctl -u "${service_name}" -n 100 --no-pager >&2 || true
+    printf 'Proxy listener did not become ready on 127.0.0.1:617\n' >&2
+    exit 1
+fi
 [[ "$(wc -l <<<"${listeners}")" -eq 1 ]]
-rg -q '127\.0\.0\.1:617' <<<"${listeners}"
 ! rg -q '0\.0\.0\.0:617|\[::\]:617' <<<"${listeners}"
 
 main_pid="$(systemctl show --property=MainPID --value "${service_name}")"
 [[ "${main_pid}" =~ ^[1-9][0-9]*$ ]]
 runtime_uid="$(awk '/^Uid:/ { print $2 }' "/proc/${main_pid}/status")"
-[[ "${runtime_uid}" != "0" ]]
+[[ "${runtime_uid}" == "0" ]]
 if [[ "$(getenforce 2>/dev/null || true)" == "Enforcing" ]]; then
     runtime_context="$(tr -d '\0' <"/proc/${main_pid}/attr/current")"
     [[ "${runtime_context}" == *":unconfined_service_t:"* ]]
 fi
 
-python3 - "${secret_path}" "${main_pid}" <<'PY'
+python3 - "${proxy_config}" "${main_pid}" <<'PY'
 import pathlib
 import sys
 
-secret_path, pid = sys.argv[1:]
-secret = pathlib.Path(secret_path).read_bytes()
-if not secret:
-    raise SystemExit("installed credential is empty")
+config_path, pid = sys.argv[1:]
+lines = pathlib.Path(config_path).read_bytes().splitlines()
+if len(lines) != 2 or not lines[0] or not lines[1]:
+    raise SystemExit("installed proxy upstream configuration must contain endpoint and token")
+endpoint, secret = lines
+cmdline = pathlib.Path(f"/proc/{pid}/cmdline").read_bytes()
+if endpoint not in cmdline:
+    raise SystemExit("configured endpoint is missing from proxy cmdline")
 for proc_name in ("cmdline", "environ"):
     process_data = pathlib.Path(f"/proc/{pid}/{proc_name}").read_bytes()
     if secret in process_data:

@@ -8,15 +8,14 @@ usage() {
     cat <<'EOF'
 Usage:
   ./cranesched-codex.sh build
-  sudo ./cranesched-codex.sh install [--source-config PATH] [--rpm PATH]
-                                  [--skip-upstream-check]
+  sudo ./cranesched-codex.sh install [--rpm PATH]
   sudo ./cranesched-codex.sh uninstall --yes
   ./cranesched-codex.sh status
 
 Commands:
   build      Build an RPM with the pinned Codex binary and runtime dependencies.
-  install    Install an RPM with DNF, provision the Key, start and verify service.
-  uninstall  Remove the package with DNF, including the RPM-owned Key.
+  install    Install an RPM with DNF; configure and start the proxy manually.
+  uninstall  Remove the package with DNF, including its proxy configuration.
   status     Show package and systemd status.
 EOF
 }
@@ -40,29 +39,17 @@ case "${command_name}" in
     install)
         [[ "${EUID}" -eq 0 ]] || die "install must run as root"
         command -v dnf >/dev/null || die "dnf is required for installation"
-        source_config="/root/.codex/config.toml"
         rpm_path=""
-        verify_upstream=1
         while (($# > 0)); do
             case "$1" in
-                --source-config)
-                    (($# >= 2)) || die "--source-config requires a path"
-                    source_config="$2"
-                    shift 2
-                    ;;
                 --rpm)
                     (($# >= 2)) || die "--rpm requires a path"
                     rpm_path="$2"
                     shift 2
                     ;;
-                --skip-upstream-check)
-                    verify_upstream=0
-                    shift
-                    ;;
                 *) die "unknown install argument: $1" ;;
             esac
         done
-        [[ -f "${source_config}" ]] || die "source config not found: ${source_config}"
         if [[ -z "${rpm_path}" ]]; then
             rpm_path="$("${script_dir}/packaging/rpm/build-rpm.sh")"
         fi
@@ -78,9 +65,8 @@ case "${command_name}" in
         [[ -n "$(find /etc/codex/skills -mindepth 2 -maxdepth 2 \
             -type f -name SKILL.md -print -quit 2>/dev/null)" ]] ||
             die "installed package did not provide any administrator Skills"
-        provision_args=(--source-config "${source_config}")
-        ((verify_upstream == 0)) || provision_args+=(--verify-upstream)
-        /usr/sbin/cranesched-codex-provision "${provision_args[@]}"
+        printf '%s\n' \
+            'Package installed. Configure /etc/codex/proxy-upstream.conf as documented before starting the proxy.'
         ;;
     uninstall)
         [[ "${EUID}" -eq 0 ]] || die "uninstall must run as root"
@@ -89,8 +75,8 @@ case "${command_name}" in
             die "uninstall is destructive; rerun with: uninstall --yes"
         rpm -q "${package_name}" >/dev/null || die "${package_name} is not installed"
         dnf --assumeyes remove "${package_name}"
-        [[ ! -e /etc/codex/proxy-api-key ]] ||
-            die "RPM was removed but the credential still exists"
+        [[ ! -e /etc/codex/proxy-upstream.conf ]] ||
+            die "RPM was removed but the proxy configuration still exists"
         printf '%s uninstalled. Modified config may remain as an RPM .rpmsave file.\n' \
             "${package_name}"
         ;;

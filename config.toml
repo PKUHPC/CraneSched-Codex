@@ -7,7 +7,7 @@ model_provider = "cluster_shared"
 model_reasoning_effort = "xhigh"
 
 [model_providers.cluster_shared]
-name = "PKU CraneSched-Codex Proxy"
+name = "CraneSched-Codex Proxy"
 base_url = "http://127.0.0.1:617/v1"
 wire_api = "responses"
 requires_openai_auth = false

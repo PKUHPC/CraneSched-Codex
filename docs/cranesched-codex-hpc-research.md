@@ -71,7 +71,7 @@ model_provider = "cluster_shared"
 model_reasoning_effort = "xhigh"
 
 [model_providers.cluster_shared]
-name = "PKU CraneSched-Codex Proxy"
+name = "CraneSched-Codex Proxy"
 base_url = "http://127.0.0.1:617/v1"
 wire_api = "responses"
 requires_openai_auth = false
@@ -267,14 +267,14 @@ RPM 将 `/etc/codex/skills` 作为包管理内容统一升级和卸载。管理�
 ## 9. 实施步骤
 
 1. 构建包含固定版 `codex`、代理和管理员 Skills 的 `cranesched-codex` RPM，并声明 `bubblewrap`、`ripgrep` 为 DNF 运行时依赖。
-2. 在每个需要提供服务的节点运行 `cranesched-codex.sh install --rpm ...`。管理脚本使用 DNF 安装或升级 RPM，再从管理员配置中严格提取 `pku` provider 的 endpoint 和 token，验证 endpoint 后将 token 写入 root-only systemd credential 文件。
-3. 以 systemd `DynamicUser` 启动代理。Key 经 credential wrapper 送入代理 stdin，不进入 argv 或环境变量；不启用 shutdown 和 dump 功能。
+2. 在每个需要提供服务的节点通过 DNF 安装 RPM，再由 root 按 README 手工创建 `/etc/codex/proxy-upstream.conf`；第一行是完整 Responses endpoint，第二行是 token，文件固定为 `root:root 0600`。
+3. 由 systemd 以 root 启动 wrapper。wrapper 直接读取固定配置，将 endpoint 传为 proxy 参数，并将 Key 经 stdin 送入代理；不启用 shutdown 和 dump 功能。
 4. 安装 `/etc/codex/config.toml`，将 `cluster_shared` custom provider 指向 `http://127.0.0.1:617/v1`，并设置 `requires_openai_auth = false`。
 5. 安装仓库 `skills/` 到 `/etc/codex/skills`，用 `skills/list` 验证其 scope 为 `admin` 且默认启用。
 6. 用普通用户账号运行默认 provider、BYOK 覆盖和按名称禁用 Skill 的验收测试。
 7. 通过集群镜像或配置管理在所有 login/compute 节点使用 DNF 分发固定版本，并建立统一的升级、Skills 更新和 Key 轮换流程。
 
-`cranesched-codex.sh` 不是第二套安装器，而是 DNF 安装、产物检查、凭据注入和上游验证的薄编排层。只拿到 RPM 的管理员可以先执行 `dnf install ./cranesched-codex-*.rpm`，再运行 RPM 自带的 `cranesched-codex-provision --source-config ... --verify-upstream`；由于 Key 不进入包体，单独执行 DNF 只会安装软件和依赖，不会让共享服务在无凭据状态下启动。
+`cranesched-codex.sh` 不是第二套安装器，只封装构建、DNF 安装/卸载和状态查看。凭据配置、服务启动、真实上游验证与轮换均由 root 按 README 手工完成；由于 endpoint 和 Key 不进入包体，单独执行 DNF 只会安装软件和依赖，不会让共享服务在无配置状态下启动。
 
 ## 10. 验收测试
 
@@ -298,7 +298,7 @@ RPM 将 `/etc/codex/skills` 作为包管理内容统一升级和卸载。管理�
 
 - `proxy/tests/test.sh` 使用 dummy token 和本地 mock upstream 验证路径限制、请求转发以及客户端 `Authorization` 覆盖。
 - 可选的真实上游 smoke test 只验证请求成功，不打印 token 或响应正文。
-- systemd runtime test 验证 `DynamicUser`、credential wrapper、低端口监听、SELinux domain 和代理转发行为。
+- systemd runtime test 验证 root-only proxy upstream 配置、root 进程、低端口监听、SELinux domain 和代理转发行为。
 - system config runtime test 验证 `/etc/codex/config.toml` 的系统默认层、用户 BYOK 覆盖、Admin skill discovery 和用户禁用覆盖。
 
 ### 管理员 Skills

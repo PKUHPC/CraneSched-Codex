@@ -9,4 +9,4 @@ __pycache__/
 .env.*
 *.key
 *.pem
-proxy-api-key
+proxy-upstream.conf

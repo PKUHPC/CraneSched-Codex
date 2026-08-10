@@ -1,5 +1,0 @@
-model = """
-[model_providers.pku]
-base_url = "https://chat.pku.edu.cn/deployer/coding_tatu/v1"
-experimental_bearer_token = "decoy-token"
-"""
