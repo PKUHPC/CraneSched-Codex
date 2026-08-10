@@ -1,10 +1,10 @@
 {
-  "version": "0.146.0",
-  "tag": "rust-v0.146.0",
-  "commit": "e363b08c9175ac1cbe5893615dd2cb9ddf95043b",
+  "version": "0.147.0",
+  "tag": "rust-v0.147.0",
+  "commit": "be6e8eac029b183056b7e4402879f15d2c85f61b",
   "target": "x86_64-unknown-linux-musl",
   "asset": "codex-x86_64-unknown-linux-musl.tar.gz",
-  "asset_url": "https://github.com/openai/codex/releases/download/rust-v0.146.0/codex-x86_64-unknown-linux-musl.tar.gz",
-  "sha256": "5ba3b9405543953081f661d0854d266f76e2abbe51d41349355a36de7673776a",
+  "asset_url": "https://github.com/openai/codex/releases/download/rust-v0.147.0/codex-x86_64-unknown-linux-musl.tar.gz",
+  "sha256": "0246e2e773834e07f0fb5249ed6ebad12e4591e608f8c7bb97dd6a9690544c36",
   "rpm_release": 1
 }
