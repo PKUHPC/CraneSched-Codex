@@ -71,6 +71,9 @@ done
 install -m 0755 -- "${native_codex}" "${build_root}/SOURCES/codex"
 install -m 0644 -- "${repo_dir}/config.toml" "${build_root}/SOURCES/config.toml"
 install -m 0644 -- \
+    "${repo_dir}/config/rules/cranesched-readonly.rules" \
+    "${build_root}/SOURCES/cranesched-readonly.rules"
+install -m 0644 -- \
     "${repo_dir}/proxy/cranesched-codex-proxy.service" \
     "${build_root}/SOURCES/cranesched-codex-proxy.service"
 install -m 0755 -- \

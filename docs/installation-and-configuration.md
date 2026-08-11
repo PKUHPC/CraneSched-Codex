@@ -12,8 +12,8 @@ RPM 的安装、首次配置、验证、升级、凭据轮换、BYOK 和卸载�
 - 已启用能够提供 `bubblewrap` 和 `ripgrep` 的 EL9 软件源。
 
 RPM 包含固定版本的 Codex、proxy wrapper、静态 systemd unit、系统默认
-配置和 CraneSched Skill。真实上游配置不在 RPM、Git、systemd unit 或
-构建产物中。
+配置、CraneSched 只读 execpolicy 默认规则和 CraneSched Skill。真实上游配置
+不在 RPM、Git、systemd unit 或构建产物中。
 
 ## 2. 安装 RPM
 
@@ -33,8 +33,38 @@ sudo dnf install ./cranesched-codex-*.el9.x86_64.rpm
 rpm -q cranesched-codex
 codex --version
 test -f /etc/codex/config.toml
+test -f /etc/codex/rules/cranesched-readonly.rules
 test -f /etc/codex/skills/cranesched-skill/SKILL.md
 ```
+
+RPM 同时安装 root 管理的默认规则文件
+`/etc/codex/rules/cranesched-readonly.rules`，默认允许只读的
+`cqueue`、`cacct`、`ccontrol show job` 和 `ccontrol show step` 命令前缀。
+CraneSched 服务端 ACL 仍然决定用户可以查看哪些记录。该系统文件只是默认值，
+用户可以在更高优先级的 Codex 配置层增加更严格的规则。
+
+`prefix_rule` 会匹配后续的全部参数。因此 `cqueue --iterate`、范围较大的
+`cacct` 历史查询、JSON 输出以及替代的 `-C/--config` 路径都会被默认允许。
+`ccontrol --json show job/step` 和 `ccontrol -J show job/step` 由于 JSON 是
+子命令前的全局选项，已通过单独规则覆盖。显式 `allow` 规则会跳过审批提示，
+并可能绕过 Codex command sandbox；该名单应继续限制为 CraneSched 只读客户端。
+如果需要严格限制参数，应使用 root 管理的 wrapper，本次变更不包含该方案。
+
+管理员可以在不连接调度器的情况下验证已安装策略：
+
+```bash
+codex execpolicy check \
+  --rules /etc/codex/rules/cranesched-readonly.rules cqueue
+codex execpolicy check \
+  --rules /etc/codex/rules/cranesched-readonly.rules \
+  ccontrol show job 123
+codex execpolicy check \
+  --rules /etc/codex/rules/cranesched-readonly.rules \
+  ccontrol update jobid=123 priority=1
+```
+
+前两个检查应报告 `"decision":"allow"`；update 命令不能报告显式的 `allow`。
+修改规则文件后应重新启动 Codex 进程，使系统规则重新加载。
 
 ## 3. 创建上游配置
 

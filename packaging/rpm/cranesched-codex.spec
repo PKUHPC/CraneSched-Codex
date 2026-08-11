@@ -20,6 +20,7 @@ Source7:        PROVENANCE
 Source8:        skills
 Source9:        installation-and-configuration.md
 Source10:       architecture-and-security.md
+Source11:       cranesched-readonly.rules
 
 ExclusiveArch:  x86_64
 Requires:       bubblewrap
@@ -33,9 +34,9 @@ Requires(postun): systemd
 
 %description
 Installs a pinned native Codex binary, a hardened loopback Responses API proxy,
-a low-priority /etc/codex/config.toml default, and the CraneSched Skill. The
-upstream endpoint and bearer token are not part of the RPM and must be
-configured manually after installation.
+low-priority /etc/codex defaults, and the CraneSched Skill. The upstream
+endpoint and bearer token are not part of the RPM and must be configured
+manually after installation.
 
 %prep
 
@@ -43,6 +44,7 @@ configured manually after installation.
 
 %install
 install -d -m 0755 %{buildroot}/etc/codex
+install -d -m 0755 %{buildroot}/etc/codex/rules
 install -d -m 0755 %{buildroot}/etc/codex/skills
 install -d -m 0755 %{buildroot}/usr/bin
 install -d -m 0755 %{buildroot}/usr/libexec/cranesched-codex
@@ -51,6 +53,8 @@ install -d -m 0755 %{buildroot}/usr/share/doc/%{name}
 install -d -m 0755 %{buildroot}/usr/share/licenses/%{name}
 
 install -m 0644 %{SOURCE1} %{buildroot}/etc/codex/config.toml
+install -m 0644 %{SOURCE11} \
+    %{buildroot}/etc/codex/rules/cranesched-readonly.rules
 cp -a %{SOURCE8}/. %{buildroot}/etc/codex/skills/
 install -m 0755 %{SOURCE0} %{buildroot}/usr/libexec/cranesched-codex/codex
 ln -s ../libexec/cranesched-codex/codex %{buildroot}/usr/bin/codex
@@ -83,6 +87,8 @@ fi
 %defattr(-,root,root,-)
 %dir %attr(0755,root,root) /etc/codex
 %config(noreplace) %attr(0644,root,root) /etc/codex/config.toml
+%dir %attr(0755,root,root) /etc/codex/rules
+%config(noreplace) %attr(0644,root,root) /etc/codex/rules/cranesched-readonly.rules
 %ghost %attr(0600,root,root) /etc/codex/proxy-upstream.conf
 %dir %attr(0755,root,root) /etc/codex/skills
 /etc/codex/skills/*
@@ -99,5 +105,7 @@ fi
 %license /usr/share/licenses/%{name}/CODEX-NOTICE
 
 %changelog
+* Tue Aug 11 2026 Cluster Administration <root@localhost> - %{codex_version}-%{package_release}
+- Install the default CraneSched read-only execpolicy rules.
 * Mon Jul 27 2026 Cluster Administration <root@localhost> - %{codex_version}-%{package_release}
 - Initial CraneSched-Codex RPM with pinned Codex, proxy, and CraneSched Skill.

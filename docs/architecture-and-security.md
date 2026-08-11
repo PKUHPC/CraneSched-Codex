@@ -109,6 +109,7 @@ RPM 是唯一部署路径，包含：
 - Source Lock 指定的 Codex 二进制；
 - 静态 proxy wrapper 和 systemd unit；
 - `/etc/codex/config.toml`；
+- `/etc/codex/rules/cranesched-readonly.rules`；
 - 锁定 CraneSched 提供的 Skill；
 - README、安装配置文档、架构说明和 provenance。
 
@@ -127,6 +128,8 @@ Lock 和 Codex 子模块，不移动 CraneSched gitlink。
 
 - loopback proxy 没有入站认证；
 - 任意本地用户可能调用它并消耗共享额度；
+- `cqueue`、`cacct` 和作业/步骤详情查询的系统 execpolicy allow 规则会跳过
+  Codex 审批，并可能绕过命令 sandbox；规则文件不是 CraneSched 授权替代品；
 - 不应启用 proxy 的 shutdown 或 dump body 功能；
 - 代理日志和诊断输出不得包含 credential、完整请求或响应；
 - 生产 endpoint 应使用 HTTPS、固定可信 DNS 和最小网络可达范围。
