@@ -50,6 +50,13 @@ CraneSched 服务端 ACL 仍然决定用户可以查看哪些记录。该系统�
 并可能绕过 Codex command sandbox；该名单应继续限制为 CraneSched 只读客户端。
 如果需要严格限制参数，应使用 root 管理的 wrapper，本次变更不包含该方案。
 
+这些参数也有可用性风险：`cqueue --iterate` 会持续刷新并保持调度器查询，
+范围较大的 `cacct` 会增加 accounting backend 负载，替代配置路径可能绕过站点
+为查询设置的连接和限流参数。自动化和诊断应优先使用 `--self`、明确的 job/step
+ID 和有限的 `--max-lines`，避免长时间 `--iterate`；发现调度器或 accounting
+延迟升高时应停止查询并联系集群管理员。ACL 负责数据授权，不能消除这些资源
+消耗风险。
+
 管理员可以在不连接调度器的情况下验证已安装策略：
 
 ```bash

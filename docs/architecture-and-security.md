@@ -130,6 +130,8 @@ Lock 和 Codex 子模块，不移动 CraneSched gitlink。
 - 任意本地用户可能调用它并消耗共享额度；
 - `cqueue`、`cacct` 和作业/步骤详情查询的系统 execpolicy allow 规则会跳过
   Codex 审批，并可能绕过命令 sandbox；规则文件不是 CraneSched 授权替代品；
+- `cqueue --iterate` 和范围较大的 `cacct` 查询仍可能增加调度器或 accounting
+  backend 负载；站点应通过命令用法、监控和自身限流策略处理可用性；
 - 不应启用 proxy 的 shutdown 或 dump body 功能；
 - 代理日志和诊断输出不得包含 credential、完整请求或响应；
 - 生产 endpoint 应使用 HTTPS、固定可信 DNS 和最小网络可达范围。
