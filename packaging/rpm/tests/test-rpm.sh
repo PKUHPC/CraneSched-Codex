@@ -161,7 +161,7 @@ rpm --root "${install_root}" -e --nodeps --noscripts cranesched-codex
 [[ ! -e "${install_root}/usr/bin/codex" ]]
 [[ ! -e "${install_root}/usr/libexec/cranesched-codex/codex" ]]
 
-# Build a tiny release-2 package with changed rules content. This exercises
+# Build a tiny next-release package with changed rules content. This exercises
 # %config(noreplace) on a real payload change, not a same-version reinstall.
 noreplace_root="${test_root}/noreplace"
 upgrade_root="${test_root}/upgrade-rpm"
