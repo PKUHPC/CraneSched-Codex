@@ -1,0 +1,44 @@
+# These are system defaults, not mandatory policy. Users may add stricter
+# rules in a higher-priority configuration layer.
+#
+# prefix_rule matches every subsequent argv token. Keep this file limited to
+# CraneSched clients whose subcommands are read-only. Explicit allow rules also
+# skip Codex approval and may bypass the command sandbox.
+
+prefix_rule(
+    pattern = ["cqueue"],
+    decision = "allow",
+    justification = "CraneSched read-only queue query",
+)
+
+prefix_rule(
+    pattern = ["cacct"],
+    decision = "allow",
+    justification = "CraneSched read-only accounting query",
+)
+
+prefix_rule(
+    pattern = ["ccontrol", "show", "job"],
+    decision = "allow",
+    justification = "CraneSched read-only job inspection",
+)
+
+prefix_rule(
+    pattern = ["ccontrol", "show", "step"],
+    decision = "allow",
+    justification = "CraneSched read-only step inspection",
+)
+
+# ccontrol documents --json and -J as global options before the subcommand.
+# A JSON flag after "show job/step" is already covered by the base prefix rule.
+prefix_rule(
+    pattern = ["ccontrol", ["--json", "-J"], "show", "job"],
+    decision = "allow",
+    justification = "CraneSched read-only JSON job inspection",
+)
+
+prefix_rule(
+    pattern = ["ccontrol", ["--json", "-J"], "show", "step"],
+    decision = "allow",
+    justification = "CraneSched read-only JSON step inspection",
+)

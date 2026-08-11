@@ -40,6 +40,7 @@ done
 
 required_paths=(
     /etc/codex/config.toml
+    /etc/codex/rules/cranesched-readonly.rules
     /etc/codex/proxy-upstream.conf
     /etc/codex/skills/cranesched-skill/SKILL.md
     /usr/bin/codex
@@ -63,6 +64,10 @@ done < <(find "${skills_source}" -mindepth 1 -type f -print0)
 [[ "$(rpm -qp --queryformat \
     '[%{FILENAMES}\t%{FILEFLAGS:fflags}\n]' "${rpm_path}" | \
     awk -F '\t' '$1 == "/etc/codex/proxy-upstream.conf" { print $2 }')" == *g* ]]
+rules_flags="$(rpm -qp --queryformat \
+    '[%{FILENAMES}\t%{FILEFLAGS:fflags}\n]' "${rpm_path}" | \
+    awk -F '\t' '$1 == "/etc/codex/rules/cranesched-readonly.rules" { print $2 }')"
+[[ "${rules_flags}" == *c* && "${rules_flags}" == *n* ]]
 
 payload_paths="$(rpm2cpio "${rpm_path}" | cpio -it --quiet)"
 ! rg -q 'proxy-upstream\.conf|cranesched-codex-provision|extract_provider_credential' \
@@ -75,9 +80,36 @@ install -d -m 0755 -- "${extract_root}"
     rpm2cpio "${rpm_path}" | cpio -idm --quiet
 )
 [[ "$(stat -c '%a' "${extract_root}/etc/codex/config.toml")" == "644" ]]
+[[ "$(stat -c '%a' \
+    "${extract_root}/etc/codex/rules/cranesched-readonly.rules")" == "644" ]]
+[[ "$(stat -c '%u:%g' \
+    "${extract_root}/etc/codex/rules/cranesched-readonly.rules")" == "0:0" ]]
 [[ "$(stat -c '%a' "${extract_root}/usr/libexec/cranesched-codex/codex")" == "755" ]]
 [[ "$(readlink "${extract_root}/usr/bin/codex")" == "../libexec/cranesched-codex/codex" ]]
 [[ "$("${extract_root}/usr/bin/codex" --version)" == "codex-cli ${codex_version}" ]]
+# Check the packaged command boundary. Source-only syntax validation would not
+# catch an omitted RPM source/install/files entry or an unsafe broad match.
+rules_path="${extract_root}/etc/codex/rules/cranesched-readonly.rules"
+for command_args in \
+    'cqueue' \
+    'cacct -j 123 -F' \
+    'ccontrol show job 123' \
+    'ccontrol show step 123.1' \
+    'ccontrol --json show job 123' \
+    'ccontrol -J show step 123.1'; do
+    read -r -a command_tokens <<<"${command_args}"
+    check_output="$("${extract_root}/usr/bin/codex" execpolicy check \
+        --rules "${rules_path}" "${command_tokens[@]}")"
+    rg -q '"decision"[[:space:]]*:[[:space:]]*"allow"' <<<"${check_output}"
+done
+for command_args in \
+    'ccontrol update jobid=123 priority=1' \
+    'ccontrol show node'; do
+    read -r -a command_tokens <<<"${command_args}"
+    check_output="$("${extract_root}/usr/bin/codex" execpolicy check \
+        --rules "${rules_path}" "${command_tokens[@]}")"
+    ! rg -q '"decision"[[:space:]]*:[[:space:]]*"allow"' <<<"${check_output}"
+done
 diff --recursive --no-dereference --brief \
     "${skills_source}" "${extract_root}/etc/codex/skills"
 diff --brief --no-dereference \
@@ -116,6 +148,9 @@ rpm --root "${install_root}" --initdb
 rpm --root "${install_root}" -ivh --nodeps --noscripts "${rpm_path}" >/dev/null
 diff --recursive --no-dereference --brief \
     "${skills_source}" "${install_root}/etc/codex/skills"
+diff --brief --no-dereference \
+    "${repo_dir}/config/rules/cranesched-readonly.rules" \
+    "${install_root}/etc/codex/rules/cranesched-readonly.rules"
 printf '%s\n%s\n' \
     'https://gateway.example.invalid/v1/responses' 'fixture-secret' \
     >"${install_root}/etc/codex/proxy-upstream.conf"
@@ -125,5 +160,55 @@ rpm --root "${install_root}" -e --nodeps --noscripts cranesched-codex
 [[ ! -e "${install_root}/etc/codex/skills" ]]
 [[ ! -e "${install_root}/usr/bin/codex" ]]
 [[ ! -e "${install_root}/usr/libexec/cranesched-codex/codex" ]]
+
+# Build a tiny next-release package with changed rules content. This exercises
+# %config(noreplace) on a real payload change, not a same-version reinstall.
+noreplace_root="${test_root}/noreplace"
+upgrade_root="${test_root}/upgrade-rpm"
+install -d -m 0755 -- "${noreplace_root}/var/lib/rpm"
+for directory in BUILD BUILDROOT RPMS SOURCES SPECS SRPMS; do
+    install -d -m 0755 -- "${upgrade_root}/${directory}"
+done
+upgrade_rules="${upgrade_root}/SOURCES/cranesched-readonly.rules"
+cp -- "${repo_dir}/config/rules/cranesched-readonly.rules" "${upgrade_rules}"
+printf '%s\n' '# packaged upgrade content' >>"${upgrade_rules}"
+upgrade_spec="${upgrade_root}/SPECS/cranesched-readonly.spec"
+upgrade_release="$((package_release + 1))"
+printf '%s\n' \
+    'Name: cranesched-codex' \
+    "Version: ${codex_version}" \
+    "Release: ${upgrade_release}%{?dist}" \
+    'Summary: CraneSched read-only policy fixture' \
+    'License: LicenseRef-Unspecified' \
+    'Source0: cranesched-readonly.rules' \
+    'ExclusiveArch: x86_64' \
+    '%description' \
+    'Upgrade fixture for the read-only policy config test.' \
+    '%prep' \
+    '%build' \
+    '%install' \
+    'install -d -m 0755 %{buildroot}/etc/codex/rules' \
+    'install -m 0644 %{SOURCE0} %{buildroot}/etc/codex/rules/cranesched-readonly.rules' \
+    '%files' \
+    '%defattr(-,root,root,-)' \
+    '%config(noreplace) %attr(0644,root,root) /etc/codex/rules/cranesched-readonly.rules' \
+    '%changelog' \
+    "* Tue Aug 11 2026 Cluster Administration <root@localhost> - ${codex_version}-${upgrade_release}" \
+    '- Change fixture content.' \
+    >"${upgrade_spec}"
+rpmbuild -bb --target x86_64 --define "_topdir ${upgrade_root}" \
+    "${upgrade_spec}" >/dev/null
+upgrade_rpm="$(find "${upgrade_root}/RPMS/x86_64" -maxdepth 1 -type f \
+    -name "cranesched-codex-${codex_version}-${upgrade_release}*.x86_64.rpm" \
+    -print -quit)"
+[[ -n "${upgrade_rpm}" ]]
+rpm --root "${noreplace_root}" --initdb
+rpm --root "${noreplace_root}" -ivh --nodeps --noscripts "${rpm_path}" >/dev/null
+noreplace_rules="${noreplace_root}/etc/codex/rules/cranesched-readonly.rules"
+printf '%s\n' '# local administrator override' >>"${noreplace_rules}"
+rpm --root "${noreplace_root}" -Uvh --nodeps --noscripts \
+    "${upgrade_rpm}" >/dev/null
+rg -Fxq -- '# local administrator override' "${noreplace_rules}"
+rg -Fxq -- '# packaged upgrade content' "${noreplace_rules}.rpmnew"
 
 printf 'CraneSched-Codex RPM tests passed.\n'
