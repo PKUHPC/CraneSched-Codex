@@ -64,7 +64,7 @@ case "${command_name}" in
             die "installed Codex binary does not match RPM version ${installed_version}"
         [[ -n "$(find /etc/codex/skills -mindepth 2 -maxdepth 2 \
             -type f -name SKILL.md -print -quit 2>/dev/null)" ]] ||
-            die "installed package did not provide any administrator Skills"
+            die "installed package did not provide the CraneSched Skill"
         printf '%s\n' \
             'Package installed. Configure /etc/codex/proxy-upstream.conf as documented before starting the proxy.'
         ;;
@@ -87,7 +87,7 @@ case "${command_name}" in
             /usr/bin/codex --version || true
         fi
         if [[ -d /etc/codex/skills ]]; then
-            printf 'Administrator Skills:\n'
+            printf 'CraneSched Skills:\n'
             find /etc/codex/skills -mindepth 2 -maxdepth 2 \
                 -type f -name SKILL.md -printf '  %h\n' | sort
         fi

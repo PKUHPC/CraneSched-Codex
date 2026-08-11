@@ -200,12 +200,13 @@ WRAPPER_TEST_STDIN="${fake_stdin}" \
 
 stage="${temp_dir}/stage"
 install -d -m 0755 -- \
-    "${stage}/etc/codex/skills" \
+    "${stage}/etc/codex" \
     "${stage}/usr/bin" \
     "${stage}/usr/libexec/cranesched-codex" \
     "${stage}/usr/lib/systemd/system"
 install -m 0644 -- "${repo_dir}/config.toml" "${stage}/etc/codex/config.toml"
-cp -a -- "${repo_dir}/skills/." "${stage}/etc/codex/skills/"
+"${repo_dir}/packaging/stage-cranesched-skills.sh" \
+    "${stage}/etc/codex/skills"
 install -m 0755 -- "${codex_bin}" "${stage}/usr/libexec/cranesched-codex/codex"
 install -m 0755 -- "${proxy_dir}/cranesched-codex-proxy" \
     "${stage}/usr/libexec/cranesched-codex/cranesched-codex-proxy"
@@ -224,13 +225,13 @@ if [[ "${SYSTEM_CONFIG_RUNTIME_TEST:-0}" == "1" ]]; then
     unshare --mount --propagation private \
         "${tests_dir}/test-system-config-layer.sh" \
         "${repo_dir}/config.toml" \
-        "${repo_dir}/skills" \
+        "${repo_dir}/submodules/CraneSched/docs/skills" \
         "${tests_dir}/fixtures/user-override.toml" \
         "${temp_dir}/system-layer-codex-home" \
         "${codex_bin}" \
         "${temp_dir}/system-layer-report.json" \
         "${temp_dir}/user-layer-report.json" \
-        "${temp_dir}/admin-skills-report.json" \
+        "${temp_dir}/system-skills-report.json" \
         "${temp_dir}/user-skills-report.json"
     jq -e '
         .checks["config.load"].status == "ok" and
@@ -250,7 +251,7 @@ if [[ "${SYSTEM_CONFIG_RUNTIME_TEST:-0}" == "1" ]]; then
             .scope == "admin" and
             .enabled == true and
             .path == "/etc/codex/skills/cranesched-skill/SKILL.md")
-    ' "${temp_dir}/admin-skills-report.json" >/dev/null
+    ' "${temp_dir}/system-skills-report.json" >/dev/null
     jq -e '
         .data | length == 1 and
         .[0].errors == [] and

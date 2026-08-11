@@ -1,7 +1,7 @@
 # CraneSched-Codex
 
 CraneSched-Codex packages a pinned Codex CLI, a loopback Responses API proxy,
-cluster defaults, and CraneSched Admin Skills as one RPM for shared HPC nodes.
+cluster defaults, and a CraneSched user Skill as one RPM for shared HPC nodes.
 Users receive a working Managed Default without seeing the upstream credential,
 while retaining the ability to configure BYOK in their own Codex home.
 
@@ -148,9 +148,11 @@ The RPM installs `/etc/codex/config.toml` as a low-priority system default. It
 selects provider `cluster_shared`, which points to the loopback proxy and does
 not require OpenAI authentication.
 
-Admin Skills are installed under `/etc/codex/skills` and discovered with Admin
-scope. They are enabled by default. A user can disable an individual Skill in
-`~/.codex/config.toml`:
+The CraneSched Skill is installed under `/etc/codex/skills` and discovered by
+Codex for every user. Codex reports the system-installed copy with `admin`
+scope because of its filesystem location; this is a loader classification, not
+an administrator-only restriction. The Skill is enabled by default, and a user
+can disable it in `~/.codex/config.toml`:
 
 ```toml
 [[skills.config]]
@@ -307,7 +309,7 @@ sudo dnf remove cranesched-codex
 ```
 
 Removal stops and disables the unit and removes the manually created wrapper
-configuration, Codex binary, system config, and Admin Skills. A locally modified
+configuration, Codex binary, system config, and CraneSched Skill. A locally modified
 `/etc/codex/config.toml` may remain as an RPM `.rpmsave` file.
 
 ## Build from source
@@ -334,13 +336,17 @@ sudo dnf install rpm-build rpm-build-libs rpm cpio curl jq tar gzip git ripgrep
 ```
 
 The build reads `packaging/codex.lock.json`, downloads the named official Codex
-release asset, verifies its SHA-256 digest, and writes a versioned RPM under
-`dist/`. Downloaded assets are cached under `dist/cache/`; neither the cache nor
-RPMs are tracked by Git. Run `tests/ci.sh` for the complete compatibility suite.
+release asset, verifies its SHA-256 digest, initializes the pinned
+`submodules/CraneSched` checkout when needed, validates
+`submodules/CraneSched/docs/skills`, and copies that tree into the RPM staging
+area. It then writes a versioned RPM under `dist/`. Downloaded assets are
+cached under `dist/cache/`; neither the cache nor RPMs are tracked by Git. Run
+`tests/ci.sh` for the complete compatibility suite.
 
 `submodules/codex` is pinned to the source commit matching the packaged Codex
 release. `submodules/CraneSched` is pinned independently and is never moved by a
-Codex update.
+Codex update. CraneSched is the source owner for the Skill; this repository owns
+only the packaging and deployment integration.
 
 ## Tests
 

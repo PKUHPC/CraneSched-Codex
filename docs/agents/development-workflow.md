@@ -9,9 +9,9 @@
   before packaging or runtime work.
 - Create a dedicated branch from the intended base and preserve unrelated work.
 
-Admin Skill changes are ordinary reviewed changes under `skills/`. The future
-Agent-assisted CraneSched documentation synchronization workflow is not
-implemented.
+CraneSched Skill source changes are reviewed in the CraneSched repository under
+`docs/skills/`. This repository reviews the staging helper, RPM integration, and
+packaging tests that consume the pinned CraneSched submodule.
 
 ## Implementation rules
 

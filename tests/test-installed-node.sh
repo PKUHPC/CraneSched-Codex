@@ -151,7 +151,7 @@ try:
         "path": "/etc/codex/skills/cranesched-skill/SKILL.md",
     }
     if not any(expected.items() <= skill.items() for skill in entries[0]["skills"]):
-        raise RuntimeError("Admin Skill was not discovered with the expected scope")
+        raise RuntimeError("CraneSched Skill was not discovered with the expected system scope")
 finally:
     process.terminate()
     try:

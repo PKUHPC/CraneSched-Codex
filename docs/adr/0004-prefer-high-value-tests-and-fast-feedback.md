@@ -9,7 +9,7 @@ packaging inputs are absent.
 The repository therefore removes `tests/test-workflows.py` and
 `tests/test-repository-contract.sh`. Retained tests cover the Codex Source Lock
 and downloaded artifact, supported Codex CLI/app-server interfaces, credential
-and proxy behavior, Admin Skills, RPM payload/install semantics, systemd, and
+and proxy behavior, the CraneSched Skill, RPM payload/install semantics, systemd, and
 installed-node behavior. A new test must name the meaningful regression or
 high-risk boundary it catches and explain why existing validation is
 insufficient.

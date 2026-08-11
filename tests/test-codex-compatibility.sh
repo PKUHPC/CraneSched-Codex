@@ -44,9 +44,11 @@ cleanup() {
     rm -rf -- "${test_dir}"
 }
 trap cleanup EXIT
-install -d -m 0700 -- "${test_dir}/codex-home/skills"
+install -d -m 0700 -- "${test_dir}/codex-home"
 install -m 0600 -- "${repo_dir}/config.toml" "${test_dir}/codex-home/config.toml"
-cp -a -- "${repo_dir}/skills/." "${test_dir}/codex-home/skills/"
+"${repo_dir}/packaging/stage-cranesched-skills.sh" \
+    "${test_dir}/codex-home/skills"
+chmod 0700 "${test_dir}/codex-home/skills"
 
 CODEX_HOME="${test_dir}/codex-home" \
     "${codex_bin}" --strict-config doctor --json >"${test_dir}/doctor.json" || true

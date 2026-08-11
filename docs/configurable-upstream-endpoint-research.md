@@ -3,7 +3,7 @@
 ## 结论
 
 CraneSched-Codex 不提供 provisioner，也不让 systemd 转交 credential。
-RPM 只安装静态程序、静态 systemd unit、Codex 系统默认配置、Admin Skills
+RPM 只安装静态程序、静态 systemd unit、Codex 系统默认配置、CraneSched Skill
 和操作文档。部署管理员以 root 身份手工维护唯一的运行时配置：
 
 ```text
@@ -21,7 +21,7 @@ RPM 中的固定内容：
 - proxy wrapper；
 - `cranesched-codex-proxy.service`；
 - 指向 `http://127.0.0.1:617/v1` 的 `/etc/codex/config.toml`；
-- `/etc/codex/skills` 下的 Admin Skills；
+- `/etc/codex/skills` 下的 CraneSched Skill（源文件来自锁定的 CraneSched Submodule）；
 - README、PROVENANCE、LICENSE 和 NOTICE。
 
 部署时唯一可变内容是 `/etc/codex/proxy-upstream.conf`。真实 endpoint 和 token

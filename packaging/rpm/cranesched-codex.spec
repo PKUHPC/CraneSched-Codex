@@ -31,7 +31,7 @@ Requires(postun): systemd
 
 %description
 Installs a pinned native Codex binary, a hardened loopback Responses API proxy,
-a low-priority /etc/codex/config.toml default, and administrator Skills. The
+a low-priority /etc/codex/config.toml default, and the CraneSched Skill. The
 upstream endpoint and bearer token are not part of the RPM and must be
 configured manually after installation.
 
@@ -92,4 +92,4 @@ fi
 
 %changelog
 * Mon Jul 27 2026 Cluster Administration <root@localhost> - %{codex_version}-%{package_release}
-- Initial CraneSched-Codex RPM with pinned Codex, proxy, and Admin Skills.
+- Initial CraneSched-Codex RPM with pinned Codex, proxy, and CraneSched Skill.

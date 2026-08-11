@@ -7,9 +7,9 @@
 1. 管理员提供一个默认模型 API 服务，真实上游 API Key 不进入普通用户的进程、环境变量或文件；
 2. 不需要区分或认证集群中的不同用户，所有能访问代理的用户都可以共享使用；
 3. 管理员配置只是默认值，不需要锁死；用户可以覆盖配置并 BYOK；
-4. 管理员在 RPM 中提供集群级默认 Skills，使用 Codex 的 Admin skill discovery 机制；Skills 默认可用，但用户可以按名称禁用。
+4. CraneSched 在主仓库维护面向所有用户的 Skill；CraneSched-Codex 将其作为系统默认包交付，用户可以按名称禁用。
 
-源码基线：`submodules/codex` commit `61a44880a85d2fd0d8770908dea5733495e571c8`（2026-07-26）。官方文档交叉核验来源包括 [Config basics](https://learn.chatgpt.com/docs/config-file/config-basic)、[Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration) 和 [Build skills](https://learn.chatgpt.com/docs/build-skills)。
+源码基线：`submodules/codex` commit `be6e8eac029b183056b7e4402879f15d2c85f61b`（Source Lock 0.147.0）。CraneSched Skill 源基线为 `submodules/CraneSched` 的锁定 gitlink；官方文档交叉核验来源包括 [Config basics](https://learn.chatgpt.com/docs/config-file/config-basic)、[Managed configuration](https://learn.chatgpt.com/docs/enterprise/managed-configuration) 和 [Build skills](https://learn.chatgpt.com/docs/build-skills)。
 
 结论很直接：
 
@@ -17,7 +17,7 @@
 - 在 `/etc/codex/config.toml` 中配置一个无客户端认证的 custom provider，指向共享代理。System config 本来就是低优先级默认层，正好允许用户通过 `~/.codex/config.toml`、profile 或 CLI 配置 BYOK。
 - 不需要修改 Codex、不需要 `/etc/codex/managed_config.toml`、不需要新增 provider requirements、不需要 token broker、Slurm 身份绑定或按 UID 签发短期 token。
 - 不应使用 `auth.command` 返回真实上游 Key。该协议会把 token 经 stdout 交给用户 UID 下的 Codex；隐藏真实 Key 的正确位置是独立权限域中的代理。
-- RPM 将仓库 `skills/` 完整安装到 `/etc/codex/skills/<name>/`，作为可被用户禁用的管理员默认值，不修改 Codex 加载器。
+- RPM 将锁定的 CraneSched Submodule 中 `docs/skills/` 完整安装到 `/etc/codex/skills/<name>/`，作为可被所有用户使用和禁用的系统默认值，不修改 Codex 加载器。
 
 推荐架构：
 
@@ -195,9 +195,9 @@ codex
 
 无论选哪一种，所有可访问代理的用户都能直接用 `curl` 调用并消耗共享额度。隐藏 Key 与控制用量是两个不同目标；当前范围只解决前者。
 
-## 6. 管理员默认 Skills
+## 6. CraneSched 用户 Skill
 
-当前部署将仓库中的 Skills 安装为：
+当前部署将 CraneSched 主仓库 `docs/skills/` 中的 Skill 安装为：
 
 ```text
 /etc/codex/skills/
@@ -208,7 +208,7 @@ codex
     references/
 ```
 
-Codex 会从 System config 所在目录派生 `/etc/codex/skills`，并将其标记为 Admin scope：`submodules/codex/codex-rs/core-skills/src/loader.rs:292-370`。官方 [Build skills](https://learn.chatgpt.com/docs/build-skills) 也将该路径列为 Admin skill location。
+Codex 会从 System config 所在目录派生 `/etc/codex/skills`，并将其标记为 `admin` scope：`submodules/codex/codex-rs/core-skills/src/loader.rs:292-370`。这是系统安装位置的加载分类，不是管理员专用的权限策略；Skill 内容面向所有 CraneSched 用户，实际访问仍受 CraneSched 自身权限控制。官方 [Build skills](https://learn.chatgpt.com/docs/build-skills) 将该路径列为 Admin skill location。
 
 Skills 使用渐进式加载：
 
@@ -226,7 +226,7 @@ name = "cranesched-skill"
 enabled = false
 ```
 
-RPM 将 `/etc/codex/skills` 作为包管理内容统一升级和卸载。管理员应在本仓库 `skills/` 修改内容、提升 RPM release 并灰度发布，不应直接编辑各节点副本。构建和原始安装都会拒绝符号链接、特殊文件、组/全局可写路径以及缺少 `SKILL.md` 的顶层 Skill。
+RPM 将 `/etc/codex/skills` 作为包管理内容统一升级和卸载。Skill 源文件由 CraneSched 主仓库维护；本仓库通过锁定的 `submodules/CraneSched` 读取 `docs/skills/`，校验后拷贝到 RPM staging，不在本仓库保留第二份副本。构建和 RPM payload 校验阶段会拒绝符号链接、特殊文件、组/全局可写路径以及缺少 `SKILL.md` 的顶层 Skill；安装阶段只执行 RPM 已构建 payload 的安装脚本。
 
 如果只是希望 Skill 更容易自动触发，应优化 `SKILL.md` 的 `description`，而不是强制每轮注入全文。Skill 中也不应包含真实 Key。
 
@@ -259,18 +259,18 @@ RPM 将 `/etc/codex/skills` 作为包管理内容统一升级和卸载。管理�
 - 用户级短期 token、JWT、MUNGE token 或 Slurm job token；
 - Unix peer credential 检查；
 - 按 UID/作业配额和审计身份；
-- 阻止用户禁用 Admin Skills；
+- 阻止用户禁用 CraneSched Skill；
 - 为了共享服务而封锁用户 BYOK 的网络出口。
 
 如果未来新增“防止滥用共享额度”或“必须只走管理员 provider”的要求，再引入认证、配额、egress policy 或 Codex 补丁。不要为当前需求提前承担这些复杂度。
 
 ## 9. 实施步骤
 
-1. 构建包含固定版 `codex`、代理和管理员 Skills 的 `cranesched-codex` RPM，并声明 `bubblewrap`、`ripgrep` 为 DNF 运行时依赖。
+1. 构建包含固定版 `codex`、代理和 CraneSched Skill 的 `cranesched-codex` RPM，并声明 `bubblewrap`、`ripgrep` 为 DNF 运行时依赖。
 2. 在每个需要提供服务的节点通过 DNF 安装 RPM，再由 root 按 README 手工创建 `/etc/codex/proxy-upstream.conf`；第一行是完整 Responses endpoint，第二行是 token，文件固定为 `root:root 0600`。
 3. 由 systemd 以 root 启动 wrapper。wrapper 直接读取固定配置，将 endpoint 传为 proxy 参数，并将 Key 经 stdin 送入代理；不启用 shutdown 和 dump 功能。
 4. 安装 `/etc/codex/config.toml`，将 `cluster_shared` custom provider 指向 `http://127.0.0.1:617/v1`，并设置 `requires_openai_auth = false`。
-5. 安装仓库 `skills/` 到 `/etc/codex/skills`，用 `skills/list` 验证其 scope 为 `admin` 且默认启用。
+5. 构建脚本初始化父仓库锁定的 CraneSched Submodule，从 `docs/skills/` 拷贝到 `/etc/codex/skills`，再用 `skills/list` 验证其 `admin` scope（系统路径分类）和默认启用状态。
 6. 用普通用户账号运行默认 provider、BYOK 覆盖和按名称禁用 Skill 的验收测试。
 7. 通过集群镜像或配置管理在所有 login/compute 节点使用 DNF 分发固定版本，并建立统一的升级、Skills 更新和 Key 轮换流程。
 
@@ -299,13 +299,13 @@ RPM 将 `/etc/codex/skills` 作为包管理内容统一升级和卸载。管理�
 - `proxy/tests/test.sh` 使用 dummy token 和本地 mock upstream 验证路径限制、请求转发以及客户端 `Authorization` 覆盖。
 - 可选的真实上游 smoke test 只验证请求成功，不打印 token 或响应正文。
 - systemd runtime test 验证 root-only proxy upstream 配置、root 进程、低端口监听、SELinux domain 和代理转发行为。
-- system config runtime test 验证 `/etc/codex/config.toml` 的系统默认层、用户 BYOK 覆盖、Admin skill discovery 和用户禁用覆盖。
+- system config runtime test 验证 `/etc/codex/config.toml` 的系统默认层、用户 BYOK 覆盖、CraneSched Skill discovery 和用户禁用覆盖。
 
-### 管理员 Skills
+### CraneSched Skill
 
-- RPM payload 与仓库 `skills/` 的文件、目录和内容完全一致，所有对象由 root 管理且普通用户不可写。
+- RPM payload 与锁定的 `submodules/CraneSched/docs/skills/` 文件、目录和内容完全一致，所有对象由 root 管理且普通用户不可写。
 - 无用户配置时，`cranesched-skill` 的 scope 为 `admin`、`enabled=true`。
 - 用户按名称配置 `enabled=false` 后该 Skill 停用，但系统文件不被修改。
 - RPM 最终卸载时完整移除 `/etc/codex/skills`。
 
-最终验收标准是：普通用户无需配置凭据即可使用默认共享 Codex 服务，并自动获得管理员提供的集群 Skills；真实上游 Key 始终只存在于管理员控制的代理安全域中；同时用户保留覆盖默认 provider、使用自己 Key 和禁用默认 Skill 的自由。
+最终验收标准是：普通用户无需配置凭据即可使用默认共享 Codex 服务，并获得由 CraneSched 主仓库维护的用户 Skill；真实上游 Key 始终只存在于管理员控制的代理安全域中；同时用户保留覆盖默认 provider、使用自己 Key 和禁用 Skill 的自由。

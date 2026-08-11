@@ -14,6 +14,7 @@ rpm_path="$(readlink -f -- "$1")"
 }
 repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
 source_lock="${repo_dir}/packaging/codex.lock.json"
+skills_source="${repo_dir}/submodules/CraneSched/docs/skills"
 codex_version="$(jq -r .version "${source_lock}")"
 package_release="$(jq -r .rpm_release "${source_lock}")"
 test_root="$(mktemp -d "${TMPDIR:-/tmp}/cranesched-codex-rpm-test.XXXXXX")"
@@ -21,6 +22,8 @@ cleanup() {
     rm -rf -- "${test_root}"
 }
 trap cleanup EXIT
+
+"${repo_dir}/packaging/validate-skills.sh" "${skills_source}"
 
 [[ "$(rpm -qp --queryformat '%{NAME}' "${rpm_path}")" == "cranesched-codex" ]]
 [[ "$(rpm -qp --queryformat '%{VERSION}' "${rpm_path}")" == "${codex_version}" ]]
@@ -52,9 +55,9 @@ for path in "${required_paths[@]}"; do
     rg -Fxq -- "${path}" <<<"${package_files}"
 done
 while IFS= read -r -d '' source_path; do
-    relative_path="${source_path#"${repo_dir}/skills/"}"
+    relative_path="${source_path#"${skills_source}/"}"
     rg -Fxq -- "/etc/codex/skills/${relative_path}" <<<"${package_files}"
-done < <(find "${repo_dir}/skills" -mindepth 1 -type f -print0)
+done < <(find "${skills_source}" -mindepth 1 -type f -print0)
 [[ "$(rpm -qp --queryformat \
     '[%{FILENAMES}\t%{FILEFLAGS:fflags}\n]' "${rpm_path}" | \
     awk -F '\t' '$1 == "/etc/codex/proxy-upstream.conf" { print $2 }')" == *g* ]]
@@ -74,7 +77,7 @@ install -d -m 0755 -- "${extract_root}"
 [[ "$(readlink "${extract_root}/usr/bin/codex")" == "../libexec/cranesched-codex/codex" ]]
 [[ "$("${extract_root}/usr/bin/codex" --version)" == "codex-cli ${codex_version}" ]]
 diff --recursive --no-dereference --brief \
-    "${repo_dir}/skills" "${extract_root}/etc/codex/skills"
+    "${skills_source}" "${extract_root}/etc/codex/skills"
 rg -Fq 'sudo dnf install ./cranesched-codex-' \
     "${extract_root}/usr/share/doc/cranesched-codex/README.md"
 rg -Fq 'sudo dnf remove cranesched-codex' \
@@ -101,7 +104,7 @@ fi
 rpm --root "${install_root}" --initdb
 rpm --root "${install_root}" -ivh --nodeps --noscripts "${rpm_path}" >/dev/null
 diff --recursive --no-dereference --brief \
-    "${repo_dir}/skills" "${install_root}/etc/codex/skills"
+    "${skills_source}" "${install_root}/etc/codex/skills"
 printf '%s\n%s\n' \
     'https://gateway.example.invalid/v1/responses' 'fixture-secret' \
     >"${install_root}/etc/codex/proxy-upstream.conf"

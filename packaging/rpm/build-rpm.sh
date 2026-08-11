@@ -47,8 +47,6 @@ command -v rpm >/dev/null || die "rpm is required"
 command -v jq >/dev/null || die "jq is required"
 [[ "${package_release}" =~ ^[1-9][0-9]*$ ]] ||
     die "Source Lock rpm_release must be a positive integer"
-"${repo_dir}/packaging/validate-skills.sh" "${repo_dir}/skills"
-
 case "$(uname -m)" in
     x86_64) rpm_arch="x86_64" ;;
     *) die "unsupported architecture: $(uname -m)" ;;
@@ -81,7 +79,8 @@ install -m 0755 -- \
 install -m 0644 -- "${repo_dir}/submodules/codex/LICENSE" "${build_root}/SOURCES/LICENSE"
 install -m 0644 -- "${repo_dir}/submodules/codex/NOTICE" "${build_root}/SOURCES/NOTICE"
 install -m 0644 -- "${repo_dir}/README.md" "${build_root}/SOURCES/README.md"
-cp -a -- "${repo_dir}/skills" "${build_root}/SOURCES/skills"
+"${repo_dir}/packaging/stage-cranesched-skills.sh" \
+    "${build_root}/SOURCES/skills"
 printf 'Codex-Version: %s\nCodex-Commit: %s\nArchitecture: %s\nAsset-URL: %s\nAsset-SHA256: %s\nBinary-SHA256: %s\n' \
     "${codex_version}" "${source_commit}" "${rpm_arch}" \
     "${source_asset_url}" "${source_asset_sha256}" "${binary_sha256}" \

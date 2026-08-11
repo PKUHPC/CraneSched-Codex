@@ -12,9 +12,12 @@ _Avoid_: Forced configuration, mandatory endpoint
 A user-supplied provider configuration and credential that replaces the Managed Default for that user.
 _Avoid_: Multi-user authentication, user provisioning
 
-**Admin Skill**:
-A cluster-maintained Skill installed as a default source of CraneSched operational knowledge for every user.
-_Avoid_: Forced Skill, bundled prompt
+**CraneSched Skill**:
+A CraneSched-maintained, user-facing Skill packaged as a system default for the
+cluster. Codex may label the system-installed copy with `admin` scope because
+it is loaded from `/etc/codex/skills`; that loader label does not make the
+content administrator-only.
+_Avoid_: Forced Skill, bundled prompt, administrator-only Skill
 
 **Codex Source Lock**:
 The auditable record that binds one packaged Codex version to its upstream tag, source commit, release asset, architecture, and digest.

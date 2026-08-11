@@ -2,25 +2,25 @@
 set -euo pipefail
 
 if (($# != 9)); then
-    printf 'Usage: test-system-config-layer.sh SYSTEM_CONFIG ADMIN_SKILLS USER_CONFIG CODEX_HOME CODEX SYSTEM_REPORT USER_REPORT ADMIN_SKILLS_REPORT USER_SKILLS_REPORT\n' >&2
+    printf 'Usage: test-system-config-layer.sh SYSTEM_CONFIG SYSTEM_SKILLS USER_CONFIG CODEX_HOME CODEX SYSTEM_REPORT USER_REPORT SYSTEM_SKILLS_REPORT USER_SKILLS_REPORT\n' >&2
     exit 2
 fi
 
 system_config="$1"
-admin_skills="$2"
+system_skills="$2"
 user_config="$3"
 test_codex_home="$4"
 codex_bin="$5"
 system_report="$6"
 user_report="$7"
-admin_skills_report="$8"
+system_skills_report="$8"
 user_skills_report="$9"
 
 mount -t tmpfs -o mode=0755 cranesched-codex-test-etc /etc
 install -d -m 0755 /etc/codex
 install -m 0644 -- "${system_config}" /etc/codex/config.toml
 install -d -m 0755 /etc/codex/skills
-cp -a -- "${admin_skills}/." /etc/codex/skills/
+cp -a -- "${system_skills}/." /etc/codex/skills/
 install -d -m 0700 -- "${test_codex_home}"
 
 list_skills() {
@@ -106,7 +106,7 @@ PY
 
 CODEX_HOME="${test_codex_home}" "${codex_bin}" --strict-config doctor --json \
     >"${system_report}" || true
-list_skills "${admin_skills_report}"
+list_skills "${system_skills_report}"
 install -m 0600 -- "${user_config}" "${test_codex_home}/config.toml"
 CODEX_HOME="${test_codex_home}" "${codex_bin}" --strict-config doctor --json \
     >"${user_report}" || true
