@@ -173,10 +173,11 @@ upgrade_rules="${upgrade_root}/SOURCES/cranesched-readonly.rules"
 cp -- "${repo_dir}/config/rules/cranesched-readonly.rules" "${upgrade_rules}"
 printf '%s\n' '# packaged upgrade content' >>"${upgrade_rules}"
 upgrade_spec="${upgrade_root}/SPECS/cranesched-readonly.spec"
+upgrade_release="$((package_release + 1))"
 printf '%s\n' \
     'Name: cranesched-codex' \
     "Version: ${codex_version}" \
-    'Release: 2%{?dist}' \
+    "Release: ${upgrade_release}%{?dist}" \
     'Summary: CraneSched read-only policy fixture' \
     'License: LicenseRef-Unspecified' \
     'Source0: cranesched-readonly.rules' \
@@ -192,13 +193,14 @@ printf '%s\n' \
     '%defattr(-,root,root,-)' \
     '%config(noreplace) %attr(0644,root,root) /etc/codex/rules/cranesched-readonly.rules' \
     '%changelog' \
-    '* Tue Aug 11 2026 Cluster Administration <root@localhost> - 2' \
+    "* Tue Aug 11 2026 Cluster Administration <root@localhost> - ${codex_version}-${upgrade_release}" \
     '- Change fixture content.' \
     >"${upgrade_spec}"
 rpmbuild -bb --target x86_64 --define "_topdir ${upgrade_root}" \
     "${upgrade_spec}" >/dev/null
 upgrade_rpm="$(find "${upgrade_root}/RPMS/x86_64" -maxdepth 1 -type f \
-    -name "cranesched-codex-${codex_version}-2*.x86_64.rpm" -print -quit)"
+    -name "cranesched-codex-${codex_version}-${upgrade_release}*.x86_64.rpm" \
+    -print -quit)"
 [[ -n "${upgrade_rpm}" ]]
 rpm --root "${noreplace_root}" --initdb
 rpm --root "${noreplace_root}" -ivh --nodeps --noscripts "${rpm_path}" >/dev/null
