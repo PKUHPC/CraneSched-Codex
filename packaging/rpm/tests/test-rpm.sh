@@ -81,6 +81,8 @@ install -d -m 0755 -- "${extract_root}"
 [[ "$(stat -c '%a' "${extract_root}/etc/codex/config.toml")" == "644" ]]
 [[ "$(stat -c '%a' \
     "${extract_root}/etc/codex/rules/cranesched-readonly.rules")" == "644" ]]
+[[ "$(stat -c '%u:%g' \
+    "${extract_root}/etc/codex/rules/cranesched-readonly.rules")" == "0:0" ]]
 [[ "$(stat -c '%a' "${extract_root}/usr/libexec/cranesched-codex/codex")" == "755" ]]
 [[ "$(readlink "${extract_root}/usr/bin/codex")" == "../libexec/cranesched-codex/codex" ]]
 [[ "$("${extract_root}/usr/bin/codex" --version)" == "codex-cli ${codex_version}" ]]
