@@ -38,4 +38,6 @@ CraneSched-Codex owns packaging and deployment. A build requires the pinned
 CraneSched commit and its source tree, so an uninitialized or dirty submodule
 fails with an actionable error instead of silently packaging stale content.
 The MkDocs site does not expose the Skill as a served page, while RPM users
-receive the same validated files under `/etc/codex/skills`.
+receive the same validated files under `/etc/codex/skills`. User operations are
+documented in `docs/installation-and-configuration.md`; architecture and
+security boundaries are summarized in `docs/architecture-and-security.md`.

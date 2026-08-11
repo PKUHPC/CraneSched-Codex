@@ -15,4 +15,5 @@ the applicable process, filesystem, capability, network-family, and resource
 restrictions. The endpoint is locally visible in the Proxy command line, but
 the token is absent from the RPM payload, repository, arguments, environment,
 and logs; manual configuration, verification, rotation, rollback, and removal
-are administrator operations documented with the package.
+are administrator operations documented in
+`docs/installation-and-configuration.md` and shipped with the package.

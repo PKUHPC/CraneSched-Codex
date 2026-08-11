@@ -18,6 +18,8 @@ Source5:        NOTICE
 Source6:        README.md
 Source7:        PROVENANCE
 Source8:        skills
+Source9:        installation-and-configuration.md
+Source10:       architecture-and-security.md
 
 ExclusiveArch:  x86_64
 Requires:       bubblewrap
@@ -55,6 +57,10 @@ ln -s ../libexec/cranesched-codex/codex %{buildroot}/usr/bin/codex
 install -m 0755 %{SOURCE3} %{buildroot}/usr/libexec/cranesched-codex/cranesched-codex-proxy
 install -m 0644 %{SOURCE2} %{buildroot}/usr/lib/systemd/system/cranesched-codex-proxy.service
 install -m 0644 %{SOURCE6} %{buildroot}/usr/share/doc/%{name}/README.md
+install -m 0644 %{SOURCE9} \
+    %{buildroot}/usr/share/doc/%{name}/installation-and-configuration.md
+install -m 0644 %{SOURCE10} \
+    %{buildroot}/usr/share/doc/%{name}/architecture-and-security.md
 install -m 0644 %{SOURCE7} %{buildroot}/usr/share/doc/%{name}/PROVENANCE
 install -m 0644 %{SOURCE4} %{buildroot}/usr/share/licenses/%{name}/CODEX-LICENSE
 install -m 0644 %{SOURCE5} %{buildroot}/usr/share/licenses/%{name}/CODEX-NOTICE
@@ -86,6 +92,8 @@ fi
 %attr(0755,root,root) /usr/libexec/cranesched-codex/cranesched-codex-proxy
 %attr(0644,root,root) /usr/lib/systemd/system/cranesched-codex-proxy.service
 %doc /usr/share/doc/%{name}/README.md
+%doc /usr/share/doc/%{name}/installation-and-configuration.md
+%doc /usr/share/doc/%{name}/architecture-and-security.md
 %doc /usr/share/doc/%{name}/PROVENANCE
 %license /usr/share/licenses/%{name}/CODEX-LICENSE
 %license /usr/share/licenses/%{name}/CODEX-NOTICE

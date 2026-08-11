@@ -47,6 +47,8 @@ required_paths=(
     /usr/libexec/cranesched-codex/codex
     /usr/libexec/cranesched-codex/cranesched-codex-proxy
     /usr/share/doc/cranesched-codex/PROVENANCE
+    /usr/share/doc/cranesched-codex/installation-and-configuration.md
+    /usr/share/doc/cranesched-codex/architecture-and-security.md
     /usr/share/licenses/cranesched-codex/CODEX-LICENSE
     /usr/share/licenses/cranesched-codex/CODEX-NOTICE
 )
@@ -78,12 +80,21 @@ install -d -m 0755 -- "${extract_root}"
 [[ "$("${extract_root}/usr/bin/codex" --version)" == "codex-cli ${codex_version}" ]]
 diff --recursive --no-dereference --brief \
     "${skills_source}" "${extract_root}/etc/codex/skills"
-rg -Fq 'sudo dnf install ./cranesched-codex-' \
-    "${extract_root}/usr/share/doc/cranesched-codex/README.md"
-rg -Fq 'sudo dnf remove cranesched-codex' \
-    "${extract_root}/usr/share/doc/cranesched-codex/README.md"
-rg -Fq 'sudoedit /etc/codex/proxy-upstream.conf' \
-    "${extract_root}/usr/share/doc/cranesched-codex/README.md"
+diff --brief --no-dereference \
+    "${repo_dir}/docs/installation-and-configuration.md" \
+    "${extract_root}/usr/share/doc/cranesched-codex/installation-and-configuration.md"
+diff --brief --no-dereference \
+    "${repo_dir}/docs/architecture-and-security.md" \
+    "${extract_root}/usr/share/doc/cranesched-codex/architecture-and-security.md"
+packaged_readme="${extract_root}/usr/share/doc/cranesched-codex/README.md"
+for documented_page in \
+    installation-and-configuration.md \
+    architecture-and-security.md; do
+    rg -Fq \
+        "https://github.com/Nativu5/CraneSched-Codex/blob/main/docs/${documented_page}" \
+        "${packaged_readme}"
+done
+! rg -q '\]\(docs/' "${packaged_readme}"
 systemd-analyze --recursive-errors=no --root="${extract_root}" \
     verify cranesched-codex-proxy.service
 
