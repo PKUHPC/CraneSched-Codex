@@ -27,7 +27,7 @@ Requires:       bubblewrap
 Requires:       coreutils
 Requires:       procps-ng
 Requires:       ripgrep
-Requires:       systemd >= 247
+Requires:       systemd >= 239
 Requires(post): systemd
 Requires(preun): systemd
 Requires(postun): systemd
