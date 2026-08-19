@@ -35,6 +35,8 @@ package_requires="$(rpm -qp --requires "${rpm_path}")"
 for dependency in bubblewrap ripgrep; do
     rg -Fxq -- "${dependency}" <<<"${package_requires}"
 done
+rg -Fxq -- 'systemd >= 239' <<<"${package_requires}"
+! rg -Fxq -- 'systemd >= 247' <<<"${package_requires}"
 ! rg -Fxq -- "python3-tomli" <<<"${package_requires}"
 ! rg -Fxq -- "bash" <<<"${package_requires}"
 
@@ -129,6 +131,10 @@ done
 ! rg -q '\]\(docs/' "${packaged_readme}"
 systemd-analyze --recursive-errors=no --root="${extract_root}" \
     verify cranesched-codex-proxy.service
+# Rocky Linux 8 systemd 239 ignores these newer sandbox directives, so their
+# presence would make the package's declared baseline misleading.
+! rg -n '^ProtectClock=|^ProtectHostname=|^ProtectKernelLogs=' \
+    "${extract_root}/usr/lib/systemd/system/cranesched-codex-proxy.service"
 
 provenance_sha="$(awk '/^Binary-SHA256:/ { print $2 }' \
     "${extract_root}/usr/share/doc/cranesched-codex/PROVENANCE")"
